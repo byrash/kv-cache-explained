@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solution Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #fff;
+  --text: #111;
+  --text2: #555;
+  --text3: #999;
+  --border: #ddd;
+  --accent: #2563eb;
+  --orange: #ea580c;
+  --green: #16a34a;
+  --purple: #7c3aed;
+  --pink: #db2777;
+  --cyan: #0891b2;
+  --yellow: #ca8a04;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'DM Sans',system-ui,sans-serif; color:var(--text); background:var(--bg); }
+h1 { font-size:22px; font-weight:700; padding:32px 40px 4px; }
+h1 span { font-weight:400; color:var(--text3); font-size:16px; }
+.intro { font-size:13px; color:var(--text2); padding:0 40px 24px; max-width:700px; line-height:1.6; }
+
+/* ---- DFD SVG ---- */
+.dfd-wrap {
+  padding: 0 20px 20px;
+  overflow-x: auto;
+}
+svg.dfd {
+  display: block;
+  margin: 0 auto;
+  max-width: 1180px;
+  width: 100%;
+  height: auto;
+}
+svg.dfd text { font-family:'DM Sans',system-ui,sans-serif; }
+svg.dfd .box {
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+svg.dfd .box:hover { filter: brightness(0.95); }
+svg.dfd .box.active rect,
+svg.dfd .box.active path { stroke-width: 2.5; }
+svg.dfd .arrow { fill: none; stroke: #94a3b8; stroke-width: 1.4; marker-end: url(#arrowhead); }
+svg.dfd .arrow-label { font-size: 9px; fill: #64748b; font-weight: 500; }
+svg.dfd .zone-label { font-size: 10px; fill: #aaa; font-weight: 600; letter-spacing: 1.5px; }
+svg.dfd .flow-num { font-size: 11px; font-weight: 700; }
+svg.dfd .layer-title { font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+
+/* ---- Sections ---- */
+.sections { max-width: 900px; margin: 0 auto; padding: 0 40px 60px; }
+.section {
+  border-top: 1px solid var(--border);
+  padding: 24px 0;
+}
+.section-head {
+  display: flex; align-items: center; gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.section-num {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.section-title { font-size: 16px; font-weight: 600; }
+.section-toggle { margin-left: auto; font-size: 18px; color: var(--text3); transition: transform 0.15s; }
+.section.open .section-toggle { transform: rotate(45deg); }
+.section-body {
+  display: none;
+  padding: 16px 0 0 40px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text2);
+}
+.section.open .section-body { display: block; }
+.section-body strong { color: var(--text); }
+.section-body code {
+  font-family:'DM Mono',monospace;
+  font-size:11px;
+  background:#f3f4f6;
+  padding:1px 5px;
+  border-radius:3px;
+}
+.impl-list {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  margin: 8px 0;
+}
+.impl-list span {
+  font-size: 11px; font-weight: 500;
+  padding: 2px 9px; border-radius: 4px;
+  background: #f3f4f6; color: var(--text2);
+}
+.section-body .subsec {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed #eee;
+}
+.section-body .subsec-title {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  margin-bottom: 4px;
+}
+</style>
+</head>
+<body>
+
+<h1>Solution Architecture</h1>
+<p class="intro">How the system works: messages come in from users, the AI thinks about them, takes actions, saves what it learns, and keeps everything safe. Click any box or section below for more detail.</p>
+
+<div class="dfd-wrap">
+<svg class="dfd" viewBox="0 0 1180 510">
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#94a3b8"/></marker>
+    <marker id="ah-main" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto"><polygon points="0 0, 10 4, 0 8" fill="#334155"/></marker>
+    <marker id="ah-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#16a34a"/></marker>
+    <marker id="ah-cyan" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#0891b2"/></marker>
+    <marker id="ah-pink" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#db2777"/></marker>
+    <marker id="ah-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#93c5fd"/></marker>
+    <marker id="ah-main-l" markerWidth="10" markerHeight="8" refX="0" refY="4" orient="auto"><polygon points="10 0, 0 4, 10 8" fill="#334155"/></marker>
+  </defs>
+
+  <!-- ═════ EXTERNAL ENTITIES (far left) ═════ -->
+  <g class="box" onclick="showSec(0)">
+    <rect x="6" y="88" width="70" height="24" rx="12" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1"/>
+    <text x="41" y="104" text-anchor="middle" font-size="10" font-weight="600" fill="#475569">Users</text>
+  </g>
+  <g class="box" onclick="showSec(0)">
+    <rect x="6" y="122" width="70" height="24" rx="12" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1"/>
+    <text x="41" y="138" text-anchor="middle" font-size="10" font-weight="600" fill="#475569">Webhooks</text>
+  </g>
+  <path d="M76,100 L90,100" fill="none" stroke="#94a3b8" stroke-width="1"/>
+  <path d="M76,134 L90,134" fill="none" stroke="#94a3b8" stroke-width="1"/>
+
+  <!-- ═════ LAYER 1: HOW MESSAGES ARRIVE ═════ -->
+  <rect x="90" y="22" width="200" height="230" rx="10" fill="#fff7ed" stroke="#f97316" stroke-width="1.5"/>
+  <rect x="90" y="22" width="200" height="22" rx="10" fill="#f97316"/>
+  <rect x="90" y="34" width="200" height="10" fill="#f97316"/>
+  <text class="layer-title" x="100" y="38" fill="#fff" font-size="9">MESSAGES IN</text>
+
+  <g class="box" onclick="showSec(1)">
+    <rect x="104" y="54" width="172" height="46" rx="6" fill="#fff" stroke="#ea580c" stroke-width="1.5"/>
+    <text x="190" y="73" text-anchor="middle" font-size="12" font-weight="600" fill="#ea580c">Messaging Apps</text>
+    <text x="190" y="87" text-anchor="middle" font-size="9" fill="#999">29 platforms</text>
+  </g>
+  <g class="box" onclick="showSec(1)">
+    <rect x="104" y="108" width="172" height="46" rx="6" fill="#fff" stroke="#ea580c" stroke-width="1.5"/>
+    <text x="190" y="127" text-anchor="middle" font-size="12" font-weight="600" fill="#ea580c">Web API</text>
+    <text x="190" y="141" text-anchor="middle" font-size="9" fill="#999">HTTP access point</text>
+  </g>
+  <g class="box" onclick="showSec(1)">
+    <rect x="104" y="162" width="172" height="46" rx="6" fill="#fff" stroke="#ea580c" stroke-width="1.5"/>
+    <text x="190" y="181" text-anchor="middle" font-size="12" font-weight="600" fill="#ea580c">Public Access</text>
+    <text x="190" y="195" text-anchor="middle" font-size="9" fill="#999">7 tunnel options</text>
+  </g>
+
+  <!-- ═════ FLOW ARROW 1 → ═════ -->
+  <path d="M290,130 L340,130" fill="none" stroke="#334155" stroke-width="2.2" marker-end="url(#ah-main)"/>
+  <circle cx="315" cy="130" r="10" fill="#334155"/>
+  <text class="flow-num" x="315" y="134" text-anchor="middle" fill="#fff">1</text>
+  <text class="arrow-label" x="298" y="118">incoming</text>
+  <text class="arrow-label" x="300" y="148">message</text>
+
+  <!-- ═════ LAYER 2: THE THINKING ENGINE ═════ -->
+  <rect x="340" y="22" width="246" height="230" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+  <rect x="340" y="22" width="246" height="22" rx="10" fill="#3b82f6"/>
+  <rect x="340" y="34" width="246" height="10" fill="#3b82f6"/>
+  <text class="layer-title" x="350" y="38" fill="#fff" font-size="9">THINKING ENGINE</text>
+
+  <g class="box" onclick="showSec(3)">
+    <rect x="354" y="54" width="105" height="40" rx="6" fill="#fff" stroke="#2563eb" stroke-width="1.2"/>
+    <text x="407" y="71" text-anchor="middle" font-size="11" font-weight="600" fill="#2563eb">AI Models</text>
+    <text x="407" y="83" text-anchor="middle" font-size="8" fill="#999">17 options</text>
+  </g>
+  <g class="box" onclick="showSec(4)">
+    <rect x="467" y="54" width="105" height="40" rx="6" fill="#fff" stroke="#2563eb" stroke-width="1.2"/>
+    <text x="520" y="71" text-anchor="middle" font-size="11" font-weight="600" fill="#2563eb">Action Parser</text>
+    <text x="520" y="83" text-anchor="middle" font-size="8" fill="#999">reads AI output</text>
+  </g>
+  <g class="box" onclick="showSec(2)">
+    <rect x="354" y="102" width="218" height="50" rx="6" fill="#fff" stroke="#2563eb" stroke-width="2"/>
+    <text x="463" y="123" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">Thinking Loop</text>
+    <text x="463" y="139" text-anchor="middle" font-size="9" fill="#94a3b8">ask &#x2192; think &#x2192; act &#x2192; repeat</text>
+  </g>
+  <path d="M407,94 L407,102" fill="none" stroke="#94a3b8" stroke-width="1" marker-end="url(#arrowhead)"/>
+  <path d="M520,94 L520,102" fill="none" stroke="#94a3b8" stroke-width="1" marker-end="url(#arrowhead)"/>
+
+  <g class="box" onclick="showSec(2)">
+    <rect x="354" y="160" width="68" height="22" rx="4" fill="#f0f5ff" stroke="#93c5fd" stroke-width="1"/>
+    <text x="388" y="175" text-anchor="middle" font-size="8" font-weight="500" fill="#3b82f6">Personality</text>
+  </g>
+  <g class="box" onclick="showSec(2)">
+    <rect x="428" y="160" width="72" height="22" rx="4" fill="#f0f5ff" stroke="#93c5fd" stroke-width="1"/>
+    <text x="464" y="175" text-anchor="middle" font-size="8" font-weight="500" fill="#3b82f6">Images/Audio</text>
+  </g>
+  <g class="box" onclick="showSec(2)">
+    <rect x="506" y="160" width="64" height="22" rx="4" fill="#f0f5ff" stroke="#93c5fd" stroke-width="1"/>
+    <text x="538" y="175" text-anchor="middle" font-size="8" font-weight="500" fill="#3b82f6">Languages</text>
+  </g>
+  <path d="M388,160 L388,152" fill="none" stroke="#93c5fd" stroke-width="0.8"/>
+  <path d="M464,160 L464,152" fill="none" stroke="#93c5fd" stroke-width="0.8"/>
+  <path d="M538,160 L538,152" fill="none" stroke="#93c5fd" stroke-width="0.8"/>
+  <text font-size="7" fill="#93c5fd" x="354" y="194">shapes how AI responds</text>
+
+  <!-- ═════ FLOW ARROW 2 → ═════ -->
+  <path d="M586,130 L636,130" fill="none" stroke="#334155" stroke-width="2.2" marker-end="url(#ah-main)"/>
+  <circle cx="611" cy="130" r="10" fill="#334155"/>
+  <text class="flow-num" x="611" y="134" text-anchor="middle" fill="#fff">2</text>
+  <text class="arrow-label" x="596" y="118">actions to</text>
+  <text class="arrow-label" x="598" y="148">perform</text>
+
+  <!-- ═════ LAYER 3: TAKING ACTION ═════ -->
+  <rect x="636" y="22" width="196" height="230" rx="10" fill="#f0fdf4" stroke="#22c55e" stroke-width="1.5"/>
+  <rect x="636" y="22" width="196" height="22" rx="10" fill="#22c55e"/>
+  <rect x="636" y="34" width="196" height="10" fill="#22c55e"/>
+  <text class="layer-title" x="646" y="38" fill="#fff" font-size="9">TAKING ACTION</text>
+
+  <g class="box" onclick="showSec(5)">
+    <rect x="650" y="54" width="84" height="40" rx="6" fill="#fff" stroke="#16a34a" stroke-width="1.5"/>
+    <text x="692" y="71" text-anchor="middle" font-size="11" font-weight="600" fill="#16a34a">Actions</text>
+    <text x="692" y="83" text-anchor="middle" font-size="8" fill="#999">30+ built-in</text>
+  </g>
+  <g class="box" onclick="showSec(6)">
+    <rect x="742" y="54" width="76" height="40" rx="6" fill="#fff" stroke="#16a34a" stroke-width="1.5"/>
+    <text x="780" y="71" text-anchor="middle" font-size="11" font-weight="600" fill="#16a34a">Hardware</text>
+    <text x="780" y="83" text-anchor="middle" font-size="8" fill="#999">6 devices</text>
+  </g>
+  <g class="box" onclick="showSec(7)">
+    <rect x="650" y="102" width="84" height="40" rx="6" fill="#fff" stroke="#16a34a" stroke-width="1.5"/>
+    <text x="692" y="119" text-anchor="middle" font-size="11" font-weight="600" fill="#16a34a">Skills</text>
+    <text x="692" y="131" text-anchor="middle" font-size="8" fill="#999">add-on packs</text>
+  </g>
+  <g class="box" onclick="showSec(7)">
+    <rect x="742" y="102" width="76" height="40" rx="6" fill="#fff" stroke="#16a34a" stroke-width="1"/>
+    <text x="780" y="124" text-anchor="middle" font-size="10" font-weight="500" fill="#16a34a">App Connectors</text>
+  </g>
+
+  <!-- ═════ FLOW ARROW 3 → ═════ -->
+  <path d="M832,130 L882,130" fill="none" stroke="#334155" stroke-width="2.2" marker-end="url(#ah-main)"/>
+  <circle cx="857" cy="130" r="10" fill="#334155"/>
+  <text class="flow-num" x="857" y="134" text-anchor="middle" fill="#fff">3</text>
+  <text class="arrow-label" x="844" y="118">saves</text>
+  <text class="arrow-label" x="846" y="148">data</text>
+
+  <!-- ═════ LAYER 4: MEMORY & STORAGE ═════ -->
+  <rect x="882" y="22" width="210" height="230" rx="10" fill="#faf5ff" stroke="#a855f7" stroke-width="1.5"/>
+  <rect x="882" y="22" width="210" height="22" rx="10" fill="#a855f7"/>
+  <rect x="882" y="34" width="210" height="10" fill="#a855f7"/>
+  <text class="layer-title" x="892" y="38" fill="#fff" font-size="9">MEMORY &amp; STORAGE</text>
+
+  <g class="box" onclick="showSec(8)">
+    <rect x="896" y="54" width="90" height="40" rx="6" fill="#fff" stroke="#7c3aed" stroke-width="1.5"/>
+    <text x="941" y="71" text-anchor="middle" font-size="11" font-weight="600" fill="#7c3aed">Memory</text>
+    <text x="941" y="83" text-anchor="middle" font-size="8" fill="#999">6 options</text>
+  </g>
+  <g class="box" onclick="showSec(9)">
+    <rect x="994" y="54" width="86" height="40" rx="6" fill="#fff" stroke="#7c3aed" stroke-width="1.5"/>
+    <text x="1037" y="71" text-anchor="middle" font-size="11" font-weight="600" fill="#7c3aed">Runtime</text>
+    <text x="1037" y="83" text-anchor="middle" font-size="8" fill="#999">local / container</text>
+  </g>
+  <g class="box" onclick="showSec(9)">
+    <rect x="896" y="102" width="58" height="38" rx="6" fill="#fff" stroke="#7c3aed" stroke-width="1"/>
+    <text x="925" y="124" text-anchor="middle" font-size="10" font-weight="600" fill="#7c3aed">Settings</text>
+  </g>
+  <g class="box" onclick="showSec(9)">
+    <rect x="960" y="102" width="62" height="38" rx="6" fill="#fff" stroke="#7c3aed" stroke-width="1"/>
+    <text x="991" y="118" text-anchor="middle" font-size="9" font-weight="600" fill="#7c3aed">Doc</text>
+    <text x="991" y="130" text-anchor="middle" font-size="9" font-weight="600" fill="#7c3aed">Search</text>
+  </g>
+  <g class="box" onclick="showSec(9)">
+    <rect x="1028" y="102" width="52" height="38" rx="6" fill="#fff" stroke="#7c3aed" stroke-width="1"/>
+    <text x="1054" y="118" text-anchor="middle" font-size="8" font-weight="500" fill="#7c3aed">Multi-</text>
+    <text x="1054" y="130" text-anchor="middle" font-size="8" font-weight="500" fill="#7c3aed">Agent</text>
+  </g>
+
+  <!-- ═════ FEEDBACK ARROWS (below layers, right → left) ═════ -->
+  <path d="M636,215 L600,215 L600,230 L340,230" fill="none" stroke="#16a34a" stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#ah-green)"/>
+  <text font-size="8" font-weight="600" fill="#16a34a" x="460" y="226">&#8592; results back</text>
+
+  <path d="M882,240 L340,240" fill="none" stroke="#7c3aed" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowhead)"/>
+  <text font-size="8" font-weight="500" fill="#7c3aed" x="600" y="248">&#8592; remembers</text>
+
+  <!-- ═════ SAFETY & MONITORING (below, spanning layers 2-3) ═════ -->
+  <rect x="90" y="278" width="502" height="140" rx="10" fill="#fdf2f8" stroke="#ec4899" stroke-width="1.5"/>
+  <rect x="90" y="278" width="502" height="22" rx="10" fill="#ec4899"/>
+  <rect x="90" y="290" width="502" height="10" fill="#ec4899"/>
+  <text class="layer-title" x="100" y="294" fill="#fff" font-size="9">SAFETY &amp; MONITORING</text>
+
+  <g class="box" onclick="showSec(10)">
+    <rect x="104" y="310" width="108" height="40" rx="6" fill="#fff" stroke="#db2777" stroke-width="1.5"/>
+    <text x="158" y="327" text-anchor="middle" font-size="11" font-weight="600" fill="#db2777">Security</text>
+    <text x="158" y="340" text-anchor="middle" font-size="8" fill="#999">rules &amp; isolation</text>
+  </g>
+  <g class="box" onclick="showSec(10)">
+    <rect x="220" y="310" width="108" height="40" rx="6" fill="#fff" stroke="#db2777" stroke-width="1"/>
+    <text x="274" y="327" text-anchor="middle" font-size="11" font-weight="600" fill="#db2777">Approval</text>
+    <text x="274" y="340" text-anchor="middle" font-size="8" fill="#999">human check</text>
+  </g>
+  <g class="box" onclick="showSec(11)">
+    <rect x="336" y="310" width="108" height="40" rx="6" fill="#fff" stroke="#db2777" stroke-width="1.5"/>
+    <text x="390" y="327" text-anchor="middle" font-size="11" font-weight="600" fill="#db2777">Monitoring</text>
+    <text x="390" y="340" text-anchor="middle" font-size="8" fill="#999">5 watchers</text>
+  </g>
+  <g class="box" onclick="showSec(11)">
+    <rect x="452" y="310" width="108" height="40" rx="6" fill="#fff" stroke="#db2777" stroke-width="1"/>
+    <text x="506" y="327" text-anchor="middle" font-size="11" font-weight="600" fill="#db2777">Budget</text>
+    <text x="506" y="340" text-anchor="middle" font-size="8" fill="#999">spending limits</text>
+  </g>
+  <g class="box" onclick="showSec(10)">
+    <rect x="104" y="358" width="108" height="30" rx="6" fill="#fff" stroke="#db2777" stroke-width="1"/>
+    <text x="158" y="377" text-anchor="middle" font-size="10" font-weight="500" fill="#db2777">Trust Score</text>
+  </g>
+  <g class="box" onclick="showSec(10)">
+    <rect x="220" y="358" width="108" height="30" rx="6" fill="#fff" stroke="#db2777" stroke-width="1"/>
+    <text x="274" y="377" text-anchor="middle" font-size="10" font-weight="500" fill="#db2777">Action Proof</text>
+  </g>
+  <g class="box" onclick="showSec(11)">
+    <rect x="336" y="358" width="108" height="30" rx="6" fill="#fff" stroke="#db2777" stroke-width="1"/>
+    <text x="390" y="377" text-anchor="middle" font-size="10" font-weight="500" fill="#db2777">Health Check</text>
+  </g>
+
+  <!-- Connectors: Layer 2 ↔ Security panel -->
+  <path d="M463,252 L463,278" fill="none" stroke="#db2777" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#ah-pink)"/>
+  <text font-size="7" font-weight="500" fill="#db2777" x="470" y="268">safety check + activity log</text>
+
+  <!-- ═════ SCHEDULED TASKS (below, right side) ═════ -->
+  <rect x="636" y="278" width="456" height="140" rx="10" fill="#ecfeff" stroke="#06b6d4" stroke-width="1.5"/>
+  <rect x="636" y="278" width="456" height="22" rx="10" fill="#06b6d4"/>
+  <rect x="636" y="290" width="456" height="10" fill="#06b6d4"/>
+  <text class="layer-title" x="646" y="294" fill="#fff" font-size="9">SCHEDULED TASKS</text>
+
+  <g class="box" onclick="showSec(12)">
+    <rect x="650" y="310" width="80" height="34" rx="6" fill="#fff" stroke="#0891b2" stroke-width="1.5"/>
+    <text x="690" y="331" text-anchor="middle" font-size="11" font-weight="600" fill="#0891b2">Schedules</text>
+  </g>
+  <g class="box" onclick="showSec(12)">
+    <rect x="738" y="310" width="80" height="34" rx="6" fill="#fff" stroke="#0891b2" stroke-width="1.5"/>
+    <text x="778" y="331" text-anchor="middle" font-size="11" font-weight="600" fill="#0891b2">Playbooks</text>
+  </g>
+  <g class="box" onclick="showSec(12)">
+    <rect x="826" y="310" width="80" height="34" rx="6" fill="#fff" stroke="#0891b2" stroke-width="1"/>
+    <text x="866" y="331" text-anchor="middle" font-size="11" font-weight="600" fill="#0891b2">Hooks</text>
+  </g>
+  <g class="box" onclick="showSec(12)">
+    <rect x="650" y="352" width="80" height="30" rx="6" fill="#fff" stroke="#0891b2" stroke-width="1"/>
+    <text x="690" y="371" text-anchor="middle" font-size="10" font-weight="500" fill="#0891b2">Auto-Rules</text>
+  </g>
+  <g class="box" onclick="showSec(12)">
+    <rect x="738" y="352" width="80" height="30" rx="6" fill="#fff" stroke="#0891b2" stroke-width="1"/>
+    <text x="778" y="371" text-anchor="middle" font-size="10" font-weight="500" fill="#0891b2">Recurring</text>
+  </g>
+  <g class="box" onclick="showSec(12)">
+    <rect x="826" y="352" width="80" height="30" rx="6" fill="#fff" stroke="#0891b2" stroke-width="1"/>
+    <text x="866" y="371" text-anchor="middle" font-size="10" font-weight="500" fill="#0891b2">Heartbeat</text>
+  </g>
+
+  <!-- Scheduled Tasks → triggers back to Thinking Engine -->
+  <path d="M636,340 L620,340 L620,210 L586,210" fill="none" stroke="#0891b2" stroke-width="1.3" stroke-dasharray="5,3" marker-end="url(#ah-cyan)"/>
+  <text font-size="7" font-weight="600" fill="#0891b2" x="624" y="264">triggers</text>
+
+  <!-- ═════ LEGEND ═════ -->
+  <g transform="translate(90,440)">
+    <text font-size="9" font-weight="600" fill="#334155" x="0" y="0">FLOW</text>
+    <line x1="40" y1="-4" x2="70" y2="-4" stroke="#334155" stroke-width="2.2" marker-end="url(#ah-main)"/>
+    <circle cx="55" r="7" cy="-4" fill="#334155"/>
+    <text font-size="7" font-weight="700" fill="#fff" x="55" y="-1" text-anchor="middle">N</text>
+    <text font-size="9" fill="#64748b" x="78" y="0">Main path (numbered)</text>
+    <line x1="230" y1="-4" x2="260" y2="-4" stroke="#16a34a" stroke-width="1.3" stroke-dasharray="5,3"/>
+    <text font-size="9" fill="#64748b" x="266" y="0">Results flowing back</text>
+    <line x1="410" y1="-4" x2="440" y2="-4" stroke="#db2777" stroke-width="1.3" stroke-dasharray="4,3"/>
+    <text font-size="9" fill="#64748b" x="446" y="0">Safety / monitoring</text>
+    <line x1="570" y1="-4" x2="600" y2="-4" stroke="#0891b2" stroke-width="1.3" stroke-dasharray="5,3"/>
+    <text font-size="9" fill="#64748b" x="606" y="0">Scheduled triggers</text>
+  </g>
+</svg>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SEQUENCE DIAGRAM: Memory Flow                             -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div style="max-width:900px; margin:0 auto; padding:40px 40px 0;">
+  <h2 style="font-size:20px; font-weight:700; margin-bottom:4px;">Step-by-Step: A Message From Start to Finish</h2>
+  <p style="font-size:13px; color:#555; margin-bottom:20px; line-height:1.6;">
+    A user sends <code style="background:#f3f4f6; padding:1px 5px; border-radius:3px; font-size:11px;">"What was our Q2 marketing budget?"</code> via Telegram.<br>
+    Follow the 8 steps below, plus the <strong style="color:#d97706;">session management</strong> interactions (marked <strong style="color:#d97706;">S</strong>), <strong>security</strong> checks, and <strong>monitoring</strong> events that happen behind the scenes.
+  </p>
+</div>
+
+<div class="dfd-wrap">
+<svg class="dfd" viewBox="0 0 980 830">
+  <defs>
+    <marker id="ah-sec" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#ec4899"/></marker>
+    <marker id="ah-sec-r" markerWidth="8" markerHeight="6" refX="0" refY="3" orient="auto"><polygon points="8 0, 0 3, 8 6" fill="#ec4899"/></marker>
+    <marker id="ah-sess" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#d97706"/></marker>
+    <marker id="ah-sess-r" markerWidth="8" markerHeight="6" refX="0" refY="3" orient="auto"><polygon points="8 0, 0 3, 8 6" fill="#d97706"/></marker>
+  </defs>
+
+  <!-- ===== 9 PARTICIPANTS ===== -->
+  <rect x="6" y="8" width="78" height="30" rx="6" fill="#ea580c"/>
+  <text x="45" y="27" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">Telegram</text>
+  <line x1="45" y1="38" x2="45" y2="795" stroke="#ea580c" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <rect x="96" y="8" width="84" height="30" rx="6" fill="#f97316"/>
+  <text x="138" y="27" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">Msg Handler</text>
+  <line x1="138" y1="38" x2="138" y2="795" stroke="#f97316" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <rect x="196" y="8" width="80" height="30" rx="6" fill="#d97706"/>
+  <text x="236" y="27" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">Session Store</text>
+  <line x1="236" y1="38" x2="236" y2="795" stroke="#d97706" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <rect x="296" y="8" width="84" height="30" rx="6" fill="#7c3aed"/>
+  <text x="338" y="27" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">Memory Store</text>
+  <line x1="338" y1="38" x2="338" y2="795" stroke="#7c3aed" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <rect x="400" y="8" width="92" height="30" rx="6" fill="#2563eb"/>
+  <text x="446" y="27" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">Thinking Loop</text>
+  <line x1="446" y1="38" x2="446" y2="795" stroke="#2563eb" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <rect x="512" y="8" width="68" height="30" rx="6" fill="#ec4899"/>
+  <text x="546" y="27" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">Security</text>
+  <line x1="546" y1="38" x2="546" y2="795" stroke="#ec4899" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <rect x="600" y="8" width="68" height="30" rx="6" fill="#3b82f6"/>
+  <text x="634" y="27" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">AI Model</text>
+  <line x1="634" y1="38" x2="634" y2="795" stroke="#3b82f6" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <rect x="690" y="8" width="80" height="30" rx="6" fill="#16a34a"/>
+  <text x="730" y="27" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">Action Runner</text>
+  <line x1="730" y1="38" x2="730" y2="795" stroke="#16a34a" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <rect x="830" y="8" width="100" height="30" rx="6" fill="#64748b"/>
+  <text x="880" y="27" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">Monitoring</text>
+  <line x1="880" y1="38" x2="880" y2="795" stroke="#94a3b8" stroke-width="1" stroke-dasharray="6,4"/>
+
+  <!-- ===== STEP 1: User message ===== -->
+  <rect x="0" y="54" width="22" height="22" rx="11" fill="#334155"/>
+  <text x="11" y="69" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">1</text>
+  <line x1="45" y1="64" x2="134" y2="64" stroke="#334155" stroke-width="1.5" marker-end="url(#ah-main)"/>
+  <rect x="58" y="50" width="66" height="14" rx="2" fill="#fff8f1"/>
+  <text x="91" y="60" text-anchor="middle" font-size="9" font-weight="600" fill="#334155">user message</text>
+  <rect x="50" y="76" width="152" height="14" rx="2" fill="#fef3c7"/>
+  <text x="126" y="86" text-anchor="middle" font-size="8" fill="#92400e">"What was our Q2 marketing budget?"</text>
+
+  <!-- ===== SESSION: Load session ===== -->
+  <rect x="0" y="98" width="22" height="22" rx="4" fill="#d97706"/>
+  <text x="11" y="113" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">S</text>
+  <line x1="138" y1="108" x2="232" y2="108" stroke="#d97706" stroke-width="1.5" marker-end="url(#ah-sess)"/>
+  <rect x="150" y="94" width="72" height="14" rx="2" fill="#fffbeb"/>
+  <text x="186" y="104" text-anchor="middle" font-size="9" font-weight="600" fill="#d97706">load session</text>
+  <rect x="231" y="104" width="10" height="38" rx="2" fill="#d97706" opacity="0.15"/>
+  <rect x="250" y="100" width="160" height="46" rx="4" fill="#fffbeb" stroke="#fde68a" stroke-width="0.5"/>
+  <text font-size="8" fill="#92400e" font-weight="600" x="256" y="112">Session Manager looks up:</text>
+  <text font-size="8" fill="#92400e" x="256" y="124">Key: telegram : chat_12345</text>
+  <text font-size="8" fill="#92400e" x="256" y="136">LRU cache (1000 sessions max)</text>
+  <line x1="232" y1="148" x2="142" y2="148" stroke="#d97706" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#ah-sess-r)"/>
+  <rect x="148" y="150" width="78" height="14" rx="2" fill="#fffbeb"/>
+  <text x="187" y="160" text-anchor="middle" font-size="8" fill="#92400e">12 messages loaded</text>
+
+  <!-- ===== STEP 2: Auto-save ===== -->
+  <rect x="0" y="174" width="22" height="22" rx="11" fill="#7c3aed"/>
+  <text x="11" y="189" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">2</text>
+  <line x1="138" y1="184" x2="334" y2="184" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#ah-pink)"/>
+  <rect x="196" y="170" width="66" height="14" rx="2" fill="#faf5ff"/>
+  <text x="229" y="180" text-anchor="middle" font-size="9" font-weight="600" fill="#7c3aed">auto-save</text>
+  <rect x="333" y="180" width="10" height="36" rx="2" fill="#7c3aed" opacity="0.2"/>
+  <rect x="352" y="176" width="148" height="40" rx="4" fill="#faf5ff" stroke="#e9d5ff" stroke-width="0.5"/>
+  <text font-size="8" fill="#6b21a8" x="358" y="188">Saves your question</text>
+  <text font-size="8" fill="#6b21a8" x="358" y="200">Filed under: Conversation</text>
+  <text font-size="8" fill="#6b21a8" x="358" y="210">Linked to: your chat session</text>
+
+  <!-- ===== STEP 3: Search memory ===== -->
+  <rect x="0" y="226" width="22" height="22" rx="11" fill="#7c3aed"/>
+  <text x="11" y="241" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">3</text>
+  <line x1="138" y1="236" x2="334" y2="236" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#ah-pink)"/>
+  <rect x="190" y="222" width="98" height="14" rx="2" fill="#faf5ff"/>
+  <text x="239" y="232" text-anchor="middle" font-size="9" font-weight="600" fill="#7c3aed">search past chats</text>
+  <rect x="333" y="232" width="10" height="30" rx="2" fill="#7c3aed" opacity="0.2"/>
+  <rect x="352" y="228" width="140" height="34" rx="4" fill="#faf5ff" stroke="#e9d5ff" stroke-width="0.5"/>
+  <text font-size="8" fill="#6b21a8" x="358" y="240">Searches: "Q2 marketing budget"</text>
+  <text font-size="8" fill="#6b21a8" x="358" y="252">Uses: keyword + meaning match</text>
+  <line x1="334" y1="272" x2="142" y2="272" stroke="#7c3aed" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arrowhead)"/>
+  <rect x="190" y="274" width="100" height="14" rx="2" fill="#faf5ff"/>
+  <text x="240" y="284" text-anchor="middle" font-size="8" fill="#6b21a8">found 3 relevant memories</text>
+
+  <!-- ===== STEP 4: Build context (with session history) ===== -->
+  <rect x="0" y="298" width="22" height="22" rx="11" fill="#2563eb"/>
+  <text x="11" y="313" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">4</text>
+  <line x1="138" y1="308" x2="442" y2="308" stroke="#2563eb" stroke-width="1.5" marker-end="url(#ah-main)"/>
+  <rect x="220" y="294" width="134" height="14" rx="2" fill="#eff6ff"/>
+  <text x="287" y="304" text-anchor="middle" font-size="9" font-weight="600" fill="#2563eb">build full context for AI</text>
+  <rect x="228" y="322" width="210" height="68" rx="4" fill="#eff6ff" stroke="#bfdbfe" stroke-width="0.5"/>
+  <text font-size="8" fill="#1e40af" font-weight="600" x="234" y="334">System prompt assembled from:</text>
+  <text font-size="8" fill="#1e40af" x="234" y="346">&#8226; SOUL.md + USER.md (personality)</text>
+  <text font-size="8" fill="#1e40af" x="234" y="358">&#8226; Recalled memories (3 matches)</text>
+  <text font-size="8" fill="#d97706" font-weight="600" x="234" y="370">&#8226; Session history (12 msgs from cache)</text>
+  <text font-size="8" fill="#1e40af" x="234" y="382">&#8226; Your new question</text>
+
+  <!-- ===== S1: SECURITY &#8212; rate limit &amp; budget ===== -->
+  <rect x="0" y="400" width="22" height="22" rx="4" fill="#ec4899"/>
+  <text x="11" y="415" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">&#x2714;</text>
+  <line x1="446" y1="410" x2="542" y2="410" stroke="#ec4899" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#ah-sec)"/>
+  <text font-size="8" fill="#ec4899" font-weight="500" x="452" y="404">rate limit &amp; budget check</text>
+  <rect x="541" y="406" width="10" height="20" rx="2" fill="#ec4899" opacity="0.15"/>
+  <line x1="542" y1="424" x2="450" y2="424" stroke="#ec4899" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#ah-sec-r)"/>
+  <text font-size="7" fill="#16a34a" font-weight="600" x="456" y="434">OK &#8212; 3/60 requests, $0.12 of $5</text>
+
+  <!-- M1: Monitoring &#8212; AI request -->
+  <rect x="834" y="406" width="110" height="26" rx="5" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.5"/>
+  <text font-size="7" fill="#64748b" font-weight="600" x="840" y="418">Step 5</text>
+  <text font-size="7" fill="#475569" x="866" y="418">AI request logged</text>
+  <text font-size="7" fill="#94a3b8" x="840" y="428">GPT-4, est. 847 tokens</text>
+
+  <!-- ===== STEP 5: Ask the AI ===== -->
+  <rect x="0" y="444" width="22" height="22" rx="11" fill="#3b82f6"/>
+  <text x="11" y="459" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">5</text>
+  <line x1="446" y1="454" x2="630" y2="454" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#ah-main)"/>
+  <rect x="498" y="440" width="70" height="14" rx="2" fill="#eff6ff"/>
+  <text x="533" y="450" text-anchor="middle" font-size="9" font-weight="600" fill="#2563eb">asks the AI</text>
+  <rect x="629" y="450" width="10" height="32" rx="2" fill="#3b82f6" opacity="0.2"/>
+  <line x1="630" y1="488" x2="450" y2="488" stroke="#3b82f6" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arrowhead)"/>
+  <rect x="470" y="490" width="128" height="14" rx="2" fill="#eff6ff"/>
+  <text x="534" y="500" text-anchor="middle" font-size="8" fill="#1e40af">answer + asks to save a note</text>
+
+  <!-- ===== S2: SECURITY &#8212; approve tool ===== -->
+  <rect x="0" y="512" width="22" height="22" rx="4" fill="#ec4899"/>
+  <text x="11" y="527" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">&#x2714;</text>
+  <line x1="446" y1="522" x2="542" y2="522" stroke="#ec4899" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#ah-sec)"/>
+  <text font-size="8" fill="#ec4899" font-weight="500" x="452" y="516">approve "save to memory"?</text>
+  <rect x="541" y="518" width="10" height="18" rx="2" fill="#ec4899" opacity="0.15"/>
+  <line x1="542" y1="538" x2="450" y2="538" stroke="#ec4899" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#ah-sec-r)"/>
+  <text font-size="7" fill="#16a34a" font-weight="600" x="456" y="548">auto-approved (safe action list)</text>
+
+  <!-- M2: Monitoring &#8212; action start -->
+  <rect x="834" y="518" width="110" height="26" rx="5" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.5"/>
+  <text font-size="7" fill="#64748b" font-weight="600" x="840" y="530">Step 6</text>
+  <text font-size="7" fill="#475569" x="866" y="530">action started</text>
+  <text font-size="7" fill="#94a3b8" x="840" y="540">tool: save_to_memory</text>
+
+  <!-- ===== STEP 6: Execute tool ===== -->
+  <rect x="0" y="556" width="22" height="22" rx="11" fill="#16a34a"/>
+  <text x="11" y="571" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">6</text>
+  <line x1="446" y1="566" x2="726" y2="566" stroke="#16a34a" stroke-width="1.5" marker-end="url(#ah-main)"/>
+  <rect x="536" y="552" width="112" height="14" rx="2" fill="#f0fdf4"/>
+  <text x="592" y="562" text-anchor="middle" font-size="9" font-weight="600" fill="#16a34a">save this to memory</text>
+  <rect x="725" y="562" width="10" height="36" rx="2" fill="#16a34a" opacity="0.2"/>
+  <line x1="725" y1="586" x2="342" y2="586" stroke="#7c3aed" stroke-width="1.2" marker-end="url(#ah-pink)"/>
+  <rect x="470" y="590" width="150" height="26" rx="4" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="0.5"/>
+  <text font-size="8" fill="#166534" x="476" y="602">Saves: "Q2 budget summary"</text>
+  <text font-size="8" fill="#166534" x="476" y="612">"$45K for Q2 marketing..."</text>
+  <rect x="333" y="582" width="10" height="14" rx="2" fill="#7c3aed" opacity="0.2"/>
+  <line x1="726" y1="624" x2="450" y2="624" stroke="#16a34a" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arrowhead)"/>
+  <rect x="542" y="626" width="80" height="14" rx="2" fill="#f0fdf4"/>
+  <text x="582" y="636" text-anchor="middle" font-size="8" fill="#166534">saved successfully</text>
+
+  <!-- M3: Monitoring &#8212; action done -->
+  <rect x="834" y="622" width="110" height="26" rx="5" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.5"/>
+  <text font-size="7" fill="#64748b" font-weight="600" x="840" y="634">Step 6</text>
+  <text font-size="7" fill="#475569" x="866" y="634">done: 45ms</text>
+  <text font-size="7" fill="#16a34a" font-weight="600" x="840" y="644">status: success</text>
+
+  <!-- ===== STEP 7: Finalize with AI ===== -->
+  <rect x="0" y="650" width="22" height="22" rx="11" fill="#3b82f6"/>
+  <text x="11" y="665" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">7</text>
+  <line x1="446" y1="660" x2="630" y2="660" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#ah-main)"/>
+  <rect x="488" y="646" width="102" height="14" rx="2" fill="#eff6ff"/>
+  <text x="539" y="656" text-anchor="middle" font-size="9" font-weight="600" fill="#2563eb">finalize the answer</text>
+  <rect x="629" y="656" width="10" height="26" rx="2" fill="#3b82f6" opacity="0.2"/>
+  <line x1="630" y1="688" x2="450" y2="688" stroke="#3b82f6" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arrowhead)"/>
+  <rect x="490" y="690" width="82" height="14" rx="2" fill="#eff6ff"/>
+  <text x="531" y="700" text-anchor="middle" font-size="8" fill="#1e40af">ready to send</text>
+
+  <!-- ===== STEP 8: Response back ===== -->
+  <rect x="0" y="712" width="22" height="22" rx="11" fill="#334155"/>
+  <text x="11" y="727" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">8</text>
+  <line x1="446" y1="722" x2="142" y2="722" stroke="#334155" stroke-width="1.5" marker-end="url(#ah-main)"/>
+  <line x1="138" y1="732" x2="49" y2="732" stroke="#334155" stroke-width="1.5" marker-end="url(#ah-main)"/>
+  <rect x="52" y="736" width="162" height="14" rx="2" fill="#fef3c7"/>
+  <text x="133" y="746" text-anchor="middle" font-size="8" fill="#92400e">"The Q2 marketing budget was $45K, split across..."</text>
+
+  <!-- ===== SESSION: Save session ===== -->
+  <rect x="0" y="756" width="22" height="22" rx="4" fill="#d97706"/>
+  <text x="11" y="771" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">S</text>
+  <line x1="138" y1="766" x2="232" y2="766" stroke="#d97706" stroke-width="1.5" marker-end="url(#ah-sess)"/>
+  <rect x="148" y="752" width="74" height="14" rx="2" fill="#fffbeb"/>
+  <text x="185" y="762" text-anchor="middle" font-size="9" font-weight="600" fill="#d97706">save session</text>
+  <rect x="231" y="762" width="10" height="28" rx="2" fill="#d97706" opacity="0.15"/>
+  <rect x="250" y="756" width="172" height="38" rx="4" fill="#fffbeb" stroke="#fde68a" stroke-width="0.5"/>
+  <text font-size="8" fill="#92400e" font-weight="600" x="256" y="768">Appends this exchange to session</text>
+  <text font-size="8" fill="#92400e" x="256" y="780">Trims if &gt; 50 msgs, persists to JSONL</text>
+  <text font-size="7" fill="#92400e" x="256" y="790">File: workspace/sessions/tg_chat_12345.jsonl</text>
+
+  <!-- M4: Monitoring &#8212; turn complete -->
+  <rect x="834" y="724" width="110" height="32" rx="5" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.5"/>
+  <text font-size="7" fill="#64748b" font-weight="600" x="840" y="736">Turn complete</text>
+  <text font-size="7" fill="#475569" x="840" y="746">847 tokens, 1 action</text>
+  <text font-size="7" fill="#334155" font-weight="600" x="840" y="754">cost: $0.003</text>
+
+  <!-- ===== LEGEND ===== -->
+  <g transform="translate(30,808)">
+    <line x1="0" y1="-4" x2="30" y2="-4" stroke="#334155" stroke-width="2" marker-end="url(#ah-main)"/>
+    <text font-size="8" fill="#64748b" x="36" y="0">Main flow</text>
+    <line x1="100" y1="-4" x2="130" y2="-4" stroke="#d97706" stroke-width="1.5" marker-end="url(#ah-sess)"/>
+    <text font-size="8" fill="#64748b" x="136" y="0">Session (load/save)</text>
+    <line x1="250" y1="-4" x2="280" y2="-4" stroke="#ec4899" stroke-width="1.3" stroke-dasharray="4,3"/>
+    <text font-size="8" fill="#64748b" x="286" y="0">Security check</text>
+    <rect x="370" y="-10" width="50" height="14" rx="4" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.5"/>
+    <text font-size="8" fill="#64748b" x="426" y="0">Monitoring event</text>
+    <line x1="530" y1="-4" x2="560" y2="-4" stroke="#7c3aed" stroke-width="1" stroke-dasharray="3,2"/>
+    <text font-size="8" fill="#64748b" x="566" y="0">Return / feedback</text>
+  </g>
+
+</svg>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SUB-AGENT DELEGATION: full explanation                     -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div style="max-width:960px; margin:0 auto; padding:40px 40px 0;">
+  <h2 style="font-size:20px; font-weight:700; margin-bottom:12px;">Sub-Agent Delegation: How It Works End-to-End</h2>
+
+  <!-- ── STEP A: What is a sub-agent ── -->
+  <div style="background:#f0fdfa; border:1.5px solid #99f6e4; border-radius:10px; padding:18px 20px; margin-bottom:16px;">
+    <div style="font-size:14px; font-weight:700; color:#0891b2; margin-bottom:8px;">What is a sub-agent?</div>
+    <p style="font-size:13px; color:#333; line-height:1.7; margin:0;">
+      A sub-agent is a <strong>named specialist</strong> you pre-define in the config file. Each one has its own AI model, personality, and limited set of tools.
+      Think of it like hiring a freelancer: you describe who they are and what they can do, but they only start working when the main AI decides it needs help.
+    </p>
+    <p style="font-size:13px; color:#333; line-height:1.7; margin-top:8px; margin-bottom:0;">
+      <strong>Sub-agents do NOT run on their own.</strong> They only exist when the parent AI explicitly calls the <code style="background:#ecfeff; padding:1px 5px; border-radius:3px; font-size:11px;">delegate</code> tool &#8212; just like any other tool (shell, file, memory). No separate process, no separate server.
+    </p>
+  </div>
+
+  <!-- ── STEP B: Config ── -->
+  <div style="background:#fffbeb; border:1.5px solid #fde68a; border-radius:10px; padding:18px 20px; margin-bottom:16px;">
+    <div style="font-size:14px; font-weight:700; color:#92400e; margin-bottom:8px;">Step 1: You define sub-agents in config</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+      <div>
+        <div style="font-family:'DM Mono',monospace; background:#fff; border:1px solid #fde68a; padding:12px; border-radius:6px; font-size:11px; line-height:2;">
+          <div style="color:#92400e; font-weight:600;">[agents.researcher]</div>
+          <div><span style="color:#0891b2;">provider</span> = "anthropic"</div>
+          <div><span style="color:#0891b2;">model</span> = "claude-4"</div>
+          <div><span style="color:#0891b2;">system_prompt</span> = "You are a research specialist"</div>
+          <div><span style="color:#0891b2;">agentic</span> = true</div>
+          <div><span style="color:#0891b2;">allowed_tools</span> = ["web_search", "read_file"]</div>
+          <div><span style="color:#0891b2;">max_depth</span> = 3</div>
+          <div><span style="color:#0891b2;">max_iterations</span> = 10</div>
+        </div>
+      </div>
+      <div style="font-size:12px; color:#555; line-height:1.8;">
+        <p style="margin:0;"><strong>provider + model</strong> &#8212; which AI to use (can be completely different from the parent)</p>
+        <p style="margin:4px 0;"><strong>system_prompt</strong> &#8212; the sub-agent's personality and instructions</p>
+        <p style="margin:4px 0;"><strong>agentic = true</strong> &#8212; can use tools in a loop (not just answer once)</p>
+        <p style="margin:4px 0;"><strong>allowed_tools</strong> &#8212; only these tools are available (filtered from parent's tools)</p>
+        <p style="margin:4px 0;"><strong>max_depth</strong> &#8212; how many levels of sub&#8594;sub delegation are allowed</p>
+        <p style="margin:4px 0;"><strong>max_iterations</strong> &#8212; safety limit on tool loop cycles</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STEP C: How it starts ── -->
+  <div style="background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:10px; padding:18px 20px; margin-bottom:16px;">
+    <div style="font-size:14px; font-weight:700; color:#2563eb; margin-bottom:8px;">Step 2: The parent AI decides to delegate (not you)</div>
+    <p style="font-size:13px; color:#333; line-height:1.7; margin:0;">
+      When you define sub-agents in config, the system automatically adds a <code style="background:#eff6ff; padding:1px 5px; border-radius:3px; font-size:11px;">delegate</code> tool to the parent AI's tool list.
+      The parent AI sees it like any other tool and chooses to use it when a task fits a specialist.
+    </p>
+    <div style="margin-top:12px; background:#fff; border:1px solid #bfdbfe; border-radius:6px; padding:12px; font-size:12px; line-height:1.8;">
+      <div style="color:#64748b; font-size:10px; text-transform:uppercase; font-weight:600; letter-spacing:1px; margin-bottom:4px;">What the parent AI returns:</div>
+      <div style="font-family:'DM Mono',monospace; font-size:11px;">
+        <span style="color:#2563eb;">tool_call</span>: delegate(<span style="color:#0891b2;">agent</span>="researcher", <span style="color:#0891b2;">prompt</span>="Find competitor pricing for Q2")
+      </div>
+      <div style="margin-top:8px; font-size:11px; color:#64748b;">
+        &#8594; The Thinking Loop sees this tool call and runs it, just like it would run shell() or memory_save(). The AI model decides; the system executes.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── STEP D: Sequence diagram ── -->
+<div style="max-width:960px; margin:0 auto; padding:0 40px;">
+  <div style="font-size:14px; font-weight:700; color:#334155; margin-bottom:8px;">Step 3: What happens inside the delegate tool</div>
+</div>
+
+<div class="dfd-wrap">
+<svg class="dfd" viewBox="0 0 900 570">
+  <defs>
+    <marker id="ah-del" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#0891b2"/></marker>
+    <marker id="ah-del-r" markerWidth="8" markerHeight="6" refX="0" refY="3" orient="auto"><polygon points="8 0, 0 3, 8 6" fill="#0891b2"/></marker>
+  </defs>
+
+  <!-- ===== 5 PARTICIPANTS ===== -->
+  <rect x="8" y="8" width="88" height="30" rx="6" fill="#2563eb"/>
+  <text x="52" y="27" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">Thinking Loop</text>
+  <line x1="52" y1="38" x2="52" y2="510" stroke="#2563eb" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <rect x="132" y="8" width="88" height="30" rx="6" fill="#0891b2"/>
+  <text x="176" y="27" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">Delegate Tool</text>
+  <line x1="176" y1="38" x2="176" y2="510" stroke="#0891b2" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <rect x="256" y="8" width="118" height="30" rx="6" fill="#7c3aed"/>
+  <text x="315" y="22" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">Sub-Agent AI</text>
+  <text x="315" y="33" text-anchor="middle" font-size="7" fill="#ddd6fe">(researcher / Claude)</text>
+  <line x1="315" y1="38" x2="315" y2="510" stroke="#7c3aed" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <rect x="410" y="8" width="100" height="30" rx="6" fill="#16a34a"/>
+  <text x="460" y="22" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">Sub-Agent Tools</text>
+  <text x="460" y="33" text-anchor="middle" font-size="7" fill="#bbf7d0">(web_search, read_file)</text>
+  <line x1="460" y1="38" x2="460" y2="510" stroke="#16a34a" stroke-width="1" stroke-dasharray="4,4"/>
+
+  <!-- ===== A: Thinking Loop invokes delegate tool ===== -->
+  <rect x="0" y="50" width="18" height="18" rx="9" fill="#334155"/>
+  <text x="9" y="62" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">A</text>
+  <line x1="52" y1="58" x2="172" y2="58" stroke="#0891b2" stroke-width="1.5" marker-end="url(#ah-del)"/>
+  <rect x="66" y="46" width="92" height="12" rx="2" fill="#ecfeff"/>
+  <text x="112" y="55" text-anchor="middle" font-size="8" font-weight="600" fill="#0891b2">delegate("researcher")</text>
+
+  <!-- Annotation: what delegate tool does -->
+  <rect x="171" y="54" width="10" height="60" rx="2" fill="#0891b2" opacity="0.12"/>
+  <rect x="530" y="48" width="358" height="72" rx="6" fill="#ecfeff" stroke="#a5f3fc" stroke-width="1"/>
+  <text font-size="9" fill="#0891b2" font-weight="700" x="540" y="62">Delegate Tool does this internally:</text>
+  <text font-size="8" fill="#155e75" x="540" y="76">1. Looks up "researcher" from config (provider, model, tools)</text>
+  <text font-size="8" fill="#155e75" x="540" y="89">2. Creates a new Claude API connection</text>
+  <text font-size="8" fill="#155e75" x="540" y="102">3. Filters parent's tools &#8594; only web_search + read_file</text>
+  <text font-size="8" fill="#155e75" x="540" y="115">4. Builds enriched prompt (system_prompt + task)</text>
+
+  <!-- ===== B: Delegate Tool sends task to Sub-Agent AI ===== -->
+  <rect x="0" y="124" width="18" height="18" rx="9" fill="#7c3aed"/>
+  <text x="9" y="136" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">B</text>
+  <line x1="176" y1="132" x2="311" y2="132" stroke="#7c3aed" stroke-width="1.5" marker-end="url(#ah-pink)"/>
+  <rect x="198" y="120" width="78" height="12" rx="2" fill="#faf5ff"/>
+  <text x="237" y="129" text-anchor="middle" font-size="8" font-weight="600" fill="#7c3aed">send task to AI</text>
+
+  <rect x="530" y="124" width="358" height="32" rx="6" fill="#faf5ff" stroke="#e9d5ff" stroke-width="1"/>
+  <text font-size="9" fill="#7c3aed" font-weight="700" x="540" y="138">Calls Claude API with:</text>
+  <text font-size="8" fill="#6b21a8" x="540" y="151">System prompt + task + tool definitions (web_search, read_file)</text>
+
+  <!-- Sub-agent activation bar (full agentic loop) -->
+  <rect x="310" y="128" width="10" height="252" rx="2" fill="#7c3aed" opacity="0.08"/>
+
+  <!-- ===== C: Sub-Agent AI says "use web_search" ===== -->
+  <rect x="0" y="168" width="18" height="18" rx="9" fill="#7c3aed"/>
+  <text x="9" y="180" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">C</text>
+  <line x1="315" y1="176" x2="456" y2="176" stroke="#16a34a" stroke-width="1.2" marker-end="url(#ah-main)"/>
+  <rect x="530" y="168" width="358" height="22" rx="6" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+  <text font-size="8" fill="#166534" x="540" y="183">Claude replies: tool_call: web_search("competitor pricing Q2")</text>
+
+  <!-- Label on arrow -->
+  <rect x="336" y="164" width="100" height="12" rx="2" fill="#f0fdf4"/>
+  <text x="386" y="173" text-anchor="middle" font-size="8" font-weight="600" fill="#16a34a">AI says: use tool</text>
+
+  <!-- Tool executes -->
+  <rect x="455" y="172" width="10" height="24" rx="2" fill="#16a34a" opacity="0.2"/>
+  <line x1="456" y1="202" x2="319" y2="202" stroke="#16a34a" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arrowhead)"/>
+  <rect x="340" y="204" width="96" height="12" rx="2" fill="#f0fdf4"/>
+  <text x="388" y="213" text-anchor="middle" font-size="7" fill="#166534">search results (tool output)</text>
+
+  <!-- ===== D: Sub-Agent AI calls another tool ===== -->
+  <rect x="0" y="224" width="18" height="18" rx="9" fill="#7c3aed"/>
+  <text x="9" y="236" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">D</text>
+  <line x1="315" y1="232" x2="456" y2="232" stroke="#16a34a" stroke-width="1.2" marker-end="url(#ah-main)"/>
+  <rect x="336" y="220" width="100" height="12" rx="2" fill="#f0fdf4"/>
+  <text x="386" y="229" text-anchor="middle" font-size="8" font-weight="600" fill="#16a34a">AI says: use tool</text>
+  <rect x="455" y="228" width="10" height="24" rx="2" fill="#16a34a" opacity="0.2"/>
+  <line x1="456" y1="258" x2="319" y2="258" stroke="#16a34a" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arrowhead)"/>
+  <rect x="340" y="260" width="96" height="12" rx="2" fill="#f0fdf4"/>
+  <text x="388" y="269" text-anchor="middle" font-size="7" fill="#166534">file contents (tool output)</text>
+
+  <rect x="530" y="224" width="358" height="22" rx="6" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+  <text font-size="8" fill="#166534" x="540" y="239">Claude replies: tool_call: read_file("report.pdf")</text>
+
+  <!-- ===== E: Repeat annotation ===== -->
+  <rect x="530" y="256" width="358" height="32" rx="6" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+  <text font-size="9" fill="#334155" font-weight="700" x="540" y="270">This loop repeats (C &#8594; D &#8594; ...)</text>
+  <text font-size="8" fill="#64748b" x="540" y="283">until the AI model decides it has enough info to answer</text>
+
+  <!-- ===== F: Sub-Agent AI gives final answer ===== -->
+  <rect x="0" y="298" width="18" height="18" rx="9" fill="#7c3aed"/>
+  <text x="9" y="310" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">E</text>
+  <line x1="315" y1="306" x2="180" y2="306" stroke="#7c3aed" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#arrowhead)"/>
+  <rect x="200" y="296" width="98" height="12" rx="2" fill="#faf5ff"/>
+  <text x="249" y="305" text-anchor="middle" font-size="8" font-weight="600" fill="#7c3aed">final text answer</text>
+
+  <rect x="530" y="298" width="358" height="22" rx="6" fill="#faf5ff" stroke="#e9d5ff" stroke-width="1"/>
+  <text font-size="8" fill="#6b21a8" x="540" y="313">Claude replies with text only (no more tool calls) &#8594; loop ends</text>
+
+  <!-- ===== G: Result flows back to parent ===== -->
+  <rect x="0" y="330" width="18" height="18" rx="9" fill="#334155"/>
+  <text x="9" y="342" text-anchor="middle" font-size="9" font-weight="700" fill="#fff">F</text>
+  <line x1="176" y1="338" x2="56" y2="338" stroke="#0891b2" stroke-width="1.2" stroke-dasharray="3,2" marker-end="url(#ah-del-r)"/>
+  <rect x="68" y="340" width="98" height="12" rx="2" fill="#ecfeff"/>
+  <text x="117" y="349" text-anchor="middle" font-size="8" font-weight="600" fill="#0891b2">tool result (text)</text>
+
+  <rect x="530" y="330" width="358" height="32" rx="6" fill="#ecfeff" stroke="#a5f3fc" stroke-width="1"/>
+  <text font-size="9" fill="#0891b2" font-weight="700" x="540" y="344">Result returns as normal tool output</text>
+  <text font-size="8" fill="#155e75" x="540" y="357">Parent AI sees it like any shell() or memory() result</text>
+
+  <!-- ═════ KEY POINTS BELOW ═════ -->
+  <rect x="8" y="380" width="510" height="62" rx="8" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1"/>
+  <text font-size="10" font-weight="700" fill="#2563eb" x="18" y="396">Key point: The AI model decides, the system executes</text>
+  <text font-size="8" fill="#1e40af" x="18" y="412">The parent AI model chooses to delegate (returns a tool call).</text>
+  <text font-size="8" fill="#1e40af" x="18" y="424">The sub-agent's AI model chooses which tools to use (returns tool calls).</text>
+  <text font-size="8" fill="#1e40af" x="18" y="436">The system (Thinking Loop) only executes what the AI asks for &#8212; it never decides on its own.</text>
+
+  <!-- Non-agentic vs Agentic -->
+  <rect x="8" y="452" width="252" height="54" rx="8" fill="#fff" stroke="#e2e8f0" stroke-width="1"/>
+  <text font-size="9" font-weight="700" fill="#334155" x="18" y="468">Simple mode (agentic = false)</text>
+  <text font-size="8" fill="#64748b" x="18" y="482">One AI call &#8594; get answer &#8594; done</text>
+  <text font-size="8" fill="#64748b" x="18" y="494">No tools, no loop. Just ask + answer.</text>
+
+  <rect x="270" y="452" width="248" height="54" rx="8" fill="#faf5ff" stroke="#e9d5ff" stroke-width="1"/>
+  <text font-size="9" font-weight="700" fill="#7c3aed" x="280" y="468">Agentic mode (agentic = true)</text>
+  <text font-size="8" fill="#6b21a8" x="280" y="482">AI calls tools &#8594; gets results &#8594; repeats</text>
+  <text font-size="8" fill="#6b21a8" x="280" y="494">Full tool loop, same as the parent agent.</text>
+
+  <!-- Background + Swarm -->
+  <rect x="530" y="380" width="358" height="62" rx="8" fill="#f0fdfa" stroke="#99f6e4" stroke-width="1"/>
+  <text font-size="9" font-weight="700" fill="#0891b2" x="540" y="396">Background mode</text>
+  <text font-size="8" fill="#155e75" x="540" y="410">background: true &#8594; returns task_id immediately</text>
+  <text font-size="8" fill="#155e75" x="540" y="422">Sub-agent works in the background. Check later with</text>
+  <text font-size="8" fill="#155e75" x="540" y="434">check_result(task_id) or cancel_task(task_id).</text>
+
+  <rect x="530" y="452" width="358" height="54" rx="8" fill="#fffbeb" stroke="#fde68a" stroke-width="1"/>
+  <text font-size="9" font-weight="700" fill="#92400e" x="540" y="468">Swarm mode (multiple agents at once)</text>
+  <text font-size="8" fill="#92400e" x="540" y="482">Sequential: run agents one after another</text>
+  <text font-size="8" fill="#92400e" x="540" y="494">Parallel: run all at the same time, collect results</text>
+  <text font-size="8" fill="#92400e" x="540" y="506">Router: AI picks the best specialist for the task</text>
+
+  <!-- ===== LEGEND ===== -->
+  <g transform="translate(8,530)">
+    <line x1="0" y1="-4" x2="24" y2="-4" stroke="#0891b2" stroke-width="1.5" marker-end="url(#ah-del)"/>
+    <text font-size="8" fill="#64748b" x="30" y="0">Delegation call</text>
+    <line x1="120" y1="-4" x2="144" y2="-4" stroke="#7c3aed" stroke-width="1.5"/>
+    <text font-size="8" fill="#64748b" x="150" y="0">Sub-agent AI interaction</text>
+    <line x1="290" y1="-4" x2="314" y2="-4" stroke="#16a34a" stroke-width="1.2"/>
+    <text font-size="8" fill="#64748b" x="320" y="0">Tool execution</text>
+    <line x1="410" y1="-4" x2="434" y2="-4" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2"/>
+    <text font-size="8" fill="#64748b" x="440" y="0">Result flowing back</text>
+  </g>
+
+</svg>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- CONFIGURATION EXAMPLES                                     -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div style="max-width:960px; margin:36px auto 0; padding:0 40px;">
+  <h3 style="font-size:18px; font-weight:700; margin-bottom:4px;">How to Configure Each Part</h3>
+  <p style="font-size:13px; color:#555; margin-bottom:20px; line-height:1.6;">Everything is controlled by one settings file. Change any of these and the system adapts instantly:</p>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px;">
+    <!-- Provider config -->
+    <div style="border:1.5px solid #3b82f6; border-radius:10px; overflow:hidden;">
+      <div style="background:#3b82f6; color:#fff; padding:8px 14px; font-size:13px; font-weight:600;">AI Provider Setup</div>
+      <div style="padding:14px; font-size:12px; line-height:1.8; color:#333;">
+        <div style="font-family:'DM Mono',monospace; background:#eff6ff; padding:10px; border-radius:6px; font-size:11px; line-height:1.9;">
+          <div><span style="color:#2563eb;">provider</span> = "openai"</div>
+          <div><span style="color:#2563eb;">model</span> = "gpt-4"</div>
+          <div><span style="color:#2563eb;">temperature</span> = 0.7</div>
+          <div style="margin-top:6px; color:#64748b;"># If OpenAI goes down:</div>
+          <div><span style="color:#2563eb;">fallbacks</span> = ["anthropic", "ollama"]</div>
+          <div style="margin-top:6px; color:#64748b;"># Smart routing:</div>
+          <div><span style="color:#2563eb;">route</span> "fast" &#8594; Groq</div>
+          <div><span style="color:#2563eb;">route</span> "code" &#8594; Claude</div>
+        </div>
+        <div style="margin-top:10px; font-size:11px; color:#64748b;">17 providers built in. Auto-retry and fallback if one is down.</div>
+      </div>
+    </div>
+
+    <!-- Security config -->
+    <div style="border:1.5px solid #ec4899; border-radius:10px; overflow:hidden;">
+      <div style="background:#ec4899; color:#fff; padding:8px 14px; font-size:13px; font-weight:600;">Security Rules</div>
+      <div style="padding:14px; font-size:12px; line-height:1.8; color:#333;">
+        <div style="font-family:'DM Mono',monospace; background:#fdf2f8; padding:10px; border-radius:6px; font-size:11px; line-height:1.9;">
+          <div><span style="color:#db2777;">level</span> = "supervised"</div>
+          <div style="color:#64748b;"># read_only | supervised | full</div>
+          <div style="margin-top:6px;"><span style="color:#db2777;">auto_approve</span> = [</div>
+          <div>&nbsp; "web_search", "memory",</div>
+          <div>&nbsp; "file_read"</div>
+          <div>]</div>
+          <div style="margin-top:4px;"><span style="color:#db2777;">always_ask</span> = [</div>
+          <div>&nbsp; "shell", "file_delete"</div>
+          <div>]</div>
+          <div style="margin-top:4px;"><span style="color:#db2777;">sandbox</span> = "auto"</div>
+        </div>
+        <div style="margin-top:10px; font-size:11px; color:#64748b;">Rate limits, budget caps, and path restrictions also available.</div>
+      </div>
+    </div>
+
+    <!-- Monitoring config -->
+    <div style="border:1.5px solid #64748b; border-radius:10px; overflow:hidden;">
+      <div style="background:#334155; color:#fff; padding:8px 14px; font-size:13px; font-weight:600;">Monitoring Setup</div>
+      <div style="padding:14px; font-size:12px; line-height:1.8; color:#333;">
+        <div style="font-family:'DM Mono',monospace; background:#f8fafc; padding:10px; border-radius:6px; font-size:11px; line-height:1.9;">
+          <div><span style="color:#334155;">backend</span> = "log"</div>
+          <div style="color:#64748b;"># log | verbose | prometheus | otel</div>
+          <div style="margin-top:6px; color:#64748b;"># For enterprise dashboards:</div>
+          <div><span style="color:#334155;">backend</span> = "otel"</div>
+          <div><span style="color:#334155;">endpoint</span> = "http://..."</div>
+          <div><span style="color:#334155;">service</span> = "my-agent"</div>
+        </div>
+        <div style="margin-top:10px; font-size:11px; color:#64748b;">Tracks: AI calls, actions, costs, errors, latency. Health check diagnoses all subsystems.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- EXTENSIBILITY MODEL                                        -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div style="max-width:960px; margin:36px auto 0; padding:0 40px 60px;">
+  <h3 style="font-size:18px; font-weight:700; margin-bottom:4px;">Extensible Design &#8212; Everything is Pluggable</h3>
+  <p style="font-size:13px; color:#555; margin-bottom:20px; line-height:1.6;">Every major component follows the same plug-and-play pattern: define what it does, then swap in any implementation. Here's what's built in &#8212; and you can add your own:</p>
+
+  <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:14px;">
+    <div style="border:1.5px solid #3b82f6; border-radius:10px; padding:16px; text-align:center;">
+      <div style="font-size:14px; font-weight:700; color:#2563eb;">AI Models</div>
+      <div style="font-size:24px; font-weight:800; color:#2563eb; margin:4px 0;">17</div>
+      <div style="font-size:11px; color:#64748b; line-height:1.5;">OpenAI, Anthropic, Gemini, Ollama, Bedrock, Groq, Azure, OpenRouter...</div>
+    </div>
+    <div style="border:1.5px solid #ea580c; border-radius:10px; padding:16px; text-align:center;">
+      <div style="font-size:14px; font-weight:700; color:#ea580c;">Messaging Apps</div>
+      <div style="font-size:24px; font-weight:800; color:#ea580c; margin:4px 0;">29</div>
+      <div style="font-size:11px; color:#64748b; line-height:1.5;">Telegram, Discord, Slack, WhatsApp, Email, Matrix, Signal, iMessage...</div>
+    </div>
+    <div style="border:1.5px solid #16a34a; border-radius:10px; padding:16px; text-align:center;">
+      <div style="font-size:14px; font-weight:700; color:#16a34a;">Actions</div>
+      <div style="font-size:24px; font-weight:800; color:#16a34a; margin:4px 0;">30+</div>
+      <div style="font-size:11px; color:#64748b; line-height:1.5;">Shell, files, git, browser, web search, calculator, memory, cron...</div>
+    </div>
+    <div style="border:1.5px solid #7c3aed; border-radius:10px; padding:16px; text-align:center;">
+      <div style="font-size:14px; font-weight:700; color:#7c3aed;">Memory Stores</div>
+      <div style="font-size:24px; font-weight:800; color:#7c3aed; margin:4px 0;">6</div>
+      <div style="font-size:11px; color:#64748b; line-height:1.5;">SQLite, Markdown, Qdrant, Lucid, Namespaced, None</div>
+    </div>
+  </div>
+
+  <div style="margin-top:24px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:20px; display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+    <div>
+      <div style="font-size:14px; font-weight:700; color:#334155; margin-bottom:10px;">Want to add a new AI provider?</div>
+      <div style="font-size:13px; line-height:1.8; color:#475569;">
+        <div style="display:flex; gap:10px; margin-bottom:6px;">
+          <span style="background:#2563eb; color:#fff; width:22px; height:22px; border-radius:11px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0;">1</span>
+          <span>Implement 3 methods: <em>chat</em>, <em>stream</em>, and <em>capabilities</em></span>
+        </div>
+        <div style="display:flex; gap:10px; margin-bottom:6px;">
+          <span style="background:#2563eb; color:#fff; width:22px; height:22px; border-radius:11px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0;">2</span>
+          <span>Register it in the provider list (one line)</span>
+        </div>
+        <div style="display:flex; gap:10px; margin-bottom:6px;">
+          <span style="background:#2563eb; color:#fff; width:22px; height:22px; border-radius:11px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0;">3</span>
+          <span>Use it in your config: <span style="font-family:'DM Mono',monospace; font-size:11px; background:#eff6ff; padding:1px 6px; border-radius:3px;">provider = "my-custom-ai"</span></span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:14px; font-weight:700; color:#334155; margin-bottom:10px;">Same pattern for everything else:</div>
+      <div style="font-size:13px; line-height:1.8; color:#475569;">
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          <span style="background:#fff7ed; color:#ea580c; padding:3px 10px; border-radius:4px; font-size:11px; font-weight:600;">+ New channel</span>
+          <span style="background:#f0fdf4; color:#16a34a; padding:3px 10px; border-radius:4px; font-size:11px; font-weight:600;">+ New action</span>
+          <span style="background:#faf5ff; color:#7c3aed; padding:3px 10px; border-radius:4px; font-size:11px; font-weight:600;">+ New memory store</span>
+          <span style="background:#fdf2f8; color:#db2777; padding:3px 10px; border-radius:4px; font-size:11px; font-weight:600;">+ New monitor</span>
+          <span style="background:#ecfeff; color:#0891b2; padding:3px 10px; border-radius:4px; font-size:11px; font-weight:600;">+ New hardware device</span>
+        </div>
+        <div style="margin-top:12px; font-size:12px; color:#64748b;">Each component defines an interface. Implement it, register it, and set it in your config. The system picks it up automatically &#8212; no core changes needed.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- IDENTITY: SOUL.md / USER.md                                -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div style="max-width:960px; margin:36px auto 0; padding:0 40px;">
+  <h3 style="font-size:18px; font-weight:700; margin-bottom:4px;">Identity &amp; Personality: What Gets Sent to the AI Every Time</h3>
+  <p style="font-size:13px; color:#555; margin-bottom:20px; line-height:1.6;">Before the AI sees your message (Step 4 above), the system assembles a <strong>system prompt</strong> that tells the AI who it is, how to behave, what it knows, and what tools it has. This prompt is built from files in your workspace:</p>
+
+  <!-- File loading order -->
+  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px;">
+    <div style="background:#eff6ff; border:1.5px solid #3b82f6; border-radius:8px; padding:10px 14px; flex:1; min-width:120px;">
+      <div style="font-size:12px; font-weight:700; color:#2563eb;">SOUL.md</div>
+      <div style="font-size:11px; color:#475569; margin-top:2px;">Core personality, values, and behavioral rules</div>
+    </div>
+    <div style="background:#eff6ff; border:1.5px solid #3b82f6; border-radius:8px; padding:10px 14px; flex:1; min-width:120px;">
+      <div style="font-size:12px; font-weight:700; color:#2563eb;">USER.md</div>
+      <div style="font-size:11px; color:#475569; margin-top:2px;">Info about you (preferences, context the AI should know)</div>
+    </div>
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; flex:1; min-width:120px;">
+      <div style="font-size:12px; font-weight:600; color:#475569;">IDENTITY.md</div>
+      <div style="font-size:11px; color:#94a3b8; margin-top:2px;">Name, role, description</div>
+    </div>
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; flex:1; min-width:120px;">
+      <div style="font-size:12px; font-weight:600; color:#475569;">AGENTS.md</div>
+      <div style="font-size:11px; color:#94a3b8; margin-top:2px;">Project conventions and rules</div>
+    </div>
+    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; flex:1; min-width:120px;">
+      <div style="font-size:12px; font-weight:600; color:#475569;">TOOLS.md</div>
+      <div style="font-size:11px; color:#94a3b8; margin-top:2px;">Custom tool instructions</div>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+    <!-- How it works -->
+    <div style="border:1px solid #e2e8f0; border-radius:10px; padding:18px;">
+      <div style="font-size:14px; font-weight:700; color:#334155; margin-bottom:10px;">How it works</div>
+      <div style="font-size:13px; line-height:1.8; color:#475569;">
+        <div style="display:flex; gap:10px; margin-bottom:6px;">
+          <span style="background:#2563eb; color:#fff; width:20px; height:20px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; flex-shrink:0;">1</span>
+          <span>On every message, the system reads these files from your workspace folder</span>
+        </div>
+        <div style="display:flex; gap:10px; margin-bottom:6px;">
+          <span style="background:#2563eb; color:#fff; width:20px; height:20px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; flex-shrink:0;">2</span>
+          <span>Each file is trimmed to <strong>20,000 characters</strong> max (6,000 in compact mode)</span>
+        </div>
+        <div style="display:flex; gap:10px; margin-bottom:6px;">
+          <span style="background:#2563eb; color:#fff; width:20px; height:20px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; flex-shrink:0;">3</span>
+          <span>They're combined into one system prompt: safety rules + identity + skills + memory + tool list</span>
+        </div>
+        <div style="display:flex; gap:10px; margin-bottom:6px;">
+          <span style="background:#2563eb; color:#fff; width:20px; height:20px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; flex-shrink:0;">4</span>
+          <span>This system prompt is the <strong>first message</strong> in every AI conversation</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rules and behaviors -->
+    <div style="border:1px solid #e2e8f0; border-radius:10px; padding:18px;">
+      <div style="font-size:14px; font-weight:700; color:#334155; margin-bottom:10px;">Key behaviors</div>
+      <div style="font-size:13px; line-height:1.8; color:#475569;">
+        <div style="margin-bottom:8px;">
+          <span style="color:#16a34a; font-weight:600;">File exists and has content?</span><br>
+          Included in the system prompt, in full (up to the char limit).
+        </div>
+        <div style="margin-bottom:8px;">
+          <span style="color:#ca8a04; font-weight:600;">File is empty?</span><br>
+          Silently skipped &#8212; nothing is added for that file.
+        </div>
+        <div style="margin-bottom:8px;">
+          <span style="color:#ef4444; font-weight:600;">File doesn't exist?</span><br>
+          A note is added: <em>"[File not found: SOUL.md]"</em> so the AI knows it's missing.
+        </div>
+        <div style="margin-top:12px; padding:10px; background:#eff6ff; border-radius:6px; font-size:12px;">
+          <strong>Alternative format:</strong> Instead of markdown files, you can use a single <strong>AIEOS JSON</strong> file that defines identity, personality, tone, and context in a structured format. Set <span style="font-family:'DM Mono',monospace; font-size:11px;">identity.format = "aieos"</span> in your config.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Visual: system prompt assembly -->
+  <div style="margin-top:20px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:18px;">
+    <div style="font-size:13px; font-weight:700; color:#334155; margin-bottom:12px;">What the AI actually receives (system prompt assembly order):</div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+      <span style="background:#fdf2f8; color:#db2777; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600;">Safety Rules</span>
+      <span style="color:#94a3b8;">&#8594;</span>
+      <span style="background:#eff6ff; color:#2563eb; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600;">SOUL.md + USER.md + IDENTITY.md</span>
+      <span style="color:#94a3b8;">&#8594;</span>
+      <span style="background:#f0fdf4; color:#16a34a; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600;">Available Tools</span>
+      <span style="color:#94a3b8;">&#8594;</span>
+      <span style="background:#ecfeff; color:#0891b2; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600;">Skills</span>
+      <span style="color:#94a3b8;">&#8594;</span>
+      <span style="background:#faf5ff; color:#7c3aed; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600;">Recalled Memories</span>
+      <span style="color:#94a3b8;">&#8594;</span>
+      <span style="background:#fff7ed; color:#ea580c; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600;">AGENTS.md + TOOLS.md</span>
+    </div>
+    <div style="margin-top:10px; font-size:12px; color:#64748b;">This entire prompt is sent as the <strong>first message</strong> every time the AI is called. Your actual question and conversation history follow after it.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SESSION MANAGEMENT                                         -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div style="max-width:960px; margin:36px auto 0; padding:0 40px 60px;">
+  <h3 style="font-size:18px; font-weight:700; margin-bottom:4px;">Session Management: How Conversations Are Tracked</h3>
+  <p style="font-size:13px; color:#555; margin-bottom:20px; line-height:1.6;">Every conversation has a <strong>session</strong> &#8212; the system keeps track of what was said so the AI has context for follow-up messages. Here's how it works end to end:</p>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px;">
+    <!-- Session scoping -->
+    <div style="border:1.5px solid #2563eb; border-radius:10px; overflow:hidden;">
+      <div style="background:#2563eb; color:#fff; padding:8px 16px; font-size:14px; font-weight:600;">What defines a "session"?</div>
+      <div style="padding:18px; font-size:13px; line-height:1.7; color:#333;">
+        <p style="margin-bottom:10px;">Each conversation is identified by a unique key made of:</p>
+        <div style="font-family:'DM Mono',monospace; background:#eff6ff; padding:12px; border-radius:6px; font-size:12px; line-height:1.6; margin-bottom:12px;">
+          <span style="color:#2563eb;">{channel}</span> + <span style="color:#ea580c;">{chat_id}</span> + <span style="color:#7c3aed;">{thread}</span> + <span style="color:#16a34a;">{sender}</span>
+        </div>
+        <div style="font-size:12px; color:#475569; line-height:1.6;">
+          <div><strong>Example:</strong> You message via Telegram in group chat #marketing, thread "budget":</div>
+          <div style="font-family:'DM Mono',monospace; background:#f8fafc; padding:6px 10px; border-radius:4px; margin-top:4px; font-size:11px;">telegram_marketing_budget_user42</div>
+          <div style="margin-top:8px;">This means:</div>
+          <ul style="padding-left:18px; margin:4px 0;">
+            <li>Different chats have <strong>separate</strong> histories</li>
+            <li>Different threads within a chat are <strong>separate</strong></li>
+            <li>Different users in the same chat get their <strong>own</strong> context</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Storage and persistence -->
+    <div style="border:1.5px solid #7c3aed; border-radius:10px; overflow:hidden;">
+      <div style="background:#7c3aed; color:#fff; padding:8px 16px; font-size:14px; font-weight:600;">Where are sessions stored?</div>
+      <div style="padding:18px; font-size:13px; line-height:1.7; color:#333;">
+        <div style="margin-bottom:12px;">
+          <strong style="color:#7c3aed;">While running (in memory):</strong>
+          <ul style="padding-left:18px; margin:4px 0;">
+            <li>Fast in-memory cache holding up to <strong>1,000 sessions</strong></li>
+            <li>Each session keeps the last <strong>50 messages</strong></li>
+            <li>Oldest sessions are evicted when the cache is full</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="color:#7c3aed;">On disk (survives restarts):</strong>
+          <ul style="padding-left:18px; margin:4px 0;">
+            <li>Each session is saved as a file in <span style="font-family:'DM Mono',monospace; font-size:11px; background:#faf5ff; padding:1px 6px; border-radius:3px;">workspace/sessions/</span></li>
+            <li>Messages are appended line-by-line (append-only log)</li>
+            <li>On startup, the most recent 1,000 sessions are reloaded</li>
+            <li>Enabled by default &#8212; set <span style="font-family:'DM Mono',monospace; font-size:11px;">session_persistence = false</span> to disable</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Context window management -->
+  <div style="border:1.5px solid #334155; border-radius:10px; overflow:hidden; margin-bottom:20px;">
+    <div style="background:#334155; color:#fff; padding:8px 16px; font-size:14px; font-weight:600;">Context Window: How the AI Sees Your Conversation</div>
+    <div style="padding:18px; font-size:13px; line-height:1.7; color:#333;">
+      <p style="margin-bottom:12px;">AI models have a limited "memory" per call (the <strong>context window</strong>, typically 32K&#8211;128K tokens). The system manages this carefully to fit as much relevant context as possible:</p>
+
+      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:14px;">
+        <!-- Strategy 1 -->
+        <div style="background:#f8fafc; border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">1. Token Budget</div>
+          <div style="font-size:12px; color:#475569; line-height:1.6;">
+            Before each AI call, the system estimates how many tokens the full conversation uses (~4 characters = 1 token). Default budget: <strong>32,000 tokens</strong>.
+          </div>
+        </div>
+        <!-- Strategy 2 -->
+        <div style="background:#f8fafc; border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">2. Smart Trimming</div>
+          <div style="font-size:12px; color:#475569; line-height:1.6;">
+            If over budget: old action results are compressed first (keep first 2/3 + last 1/3). Then older messages are dropped, keeping the most recent <strong>4 messages</strong> intact.
+          </div>
+        </div>
+        <!-- Strategy 3 -->
+        <div style="background:#f8fafc; border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">3. Context Compression</div>
+          <div style="font-size:12px; color:#475569; line-height:1.6;">
+            For long conversations, the AI itself summarizes older history into a condensed recap, keeping the thread of the conversation without the full verbatim text.
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px; display:grid; grid-template-columns:repeat(2, 1fr); gap:14px;">
+        <!-- Strategy 4 -->
+        <div style="background:#fef3c7; border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:#92400e; margin-bottom:6px;">4. Emergency Recovery</div>
+          <div style="font-size:12px; color:#78350f; line-height:1.6;">
+            If the AI model rejects a request because it's too long, the system automatically trims old action details + drops the oldest 1/3 of messages, then retries.
+          </div>
+        </div>
+        <!-- Strategy 5 -->
+        <div style="background:#f0fdf4; border-radius:8px; padding:14px;">
+          <div style="font-size:12px; font-weight:700; color:#166534; margin-bottom:6px;">5. Tool Context Cleanup</div>
+          <div style="font-size:12px; color:#14532d; line-height:1.6;">
+            Only the last <strong>2 turns</strong> keep full action details. Older turns have their action context stripped to save space while keeping the conversation flow.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Visual: what the AI sees per call -->
+  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:18px;">
+    <div style="font-size:13px; font-weight:700; color:#334155; margin-bottom:12px;">What the AI sees on each call (in order):</div>
+    <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
+      <span style="background:#fdf2f8; color:#db2777; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600; border:1px solid #fce7f3;">System Prompt</span>
+      <span style="color:#94a3b8; font-size:11px;">contains</span>
+      <span style="background:#eff6ff; color:#2563eb; padding:4px 8px; border-radius:4px; font-size:10px;">SOUL.md</span>
+      <span style="background:#eff6ff; color:#2563eb; padding:4px 8px; border-radius:4px; font-size:10px;">USER.md</span>
+      <span style="background:#eff6ff; color:#2563eb; padding:4px 8px; border-radius:4px; font-size:10px;">tools</span>
+      <span style="background:#eff6ff; color:#2563eb; padding:4px 8px; border-radius:4px; font-size:10px;">memories</span>
+    </div>
+    <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center; margin-top:8px;">
+      <span style="color:#94a3b8; font-size:11px;">then</span>
+      <span style="background:#fff7ed; color:#ea580c; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600; border:1px solid #fed7aa;">Conversation History</span>
+      <span style="color:#94a3b8; font-size:11px;">up to 50 messages, trimmed to fit token budget</span>
+    </div>
+    <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center; margin-top:8px;">
+      <span style="color:#94a3b8; font-size:11px;">then</span>
+      <span style="background:#f0fdf4; color:#16a34a; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600; border:1px solid #bbf7d0;">Your Latest Message</span>
+      <span style="color:#94a3b8; font-size:11px;">the new question or follow-up</span>
+    </div>
+    <div style="margin-top:14px; font-size:12px; color:#64748b; line-height:1.6;">
+      <strong>Config fields that control this:</strong>
+      <span style="font-family:'DM Mono',monospace; font-size:11px; background:#f3f4f6; padding:1px 6px; border-radius:3px;">max_history_messages = 50</span>,
+      <span style="font-family:'DM Mono',monospace; font-size:11px; background:#f3f4f6; padding:1px 6px; border-radius:3px;">max_context_tokens = 32000</span>,
+      <span style="font-family:'DM Mono',monospace; font-size:11px; background:#f3f4f6; padding:1px 6px; border-radius:3px;">keep_tool_context_turns = 2</span>,
+      <span style="font-family:'DM Mono',monospace; font-size:11px; background:#f3f4f6; padding:1px 6px; border-radius:3px;">compact_context = false</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TECHNICAL SECTIONS ===== -->
+<div class="sections">
+
+<div class="section" id="sec-1">
+  <div class="section-head" onclick="togSec(this)">
+    <div class="section-num" style="background:var(--orange)">1</div>
+    <span class="section-title">How Messages Arrive &#8212; Apps, Web API, Public Access</span>
+    <span class="section-toggle">+</span>
+  </div>
+  <div class="section-body">
+    <div class="subsec">
+      <div class="subsec-title">Messaging Apps</div>
+      <p>The system connects to <strong>29 messaging platforms</strong> at the same time. Each platform adapter can send and receive messages, show typing indicators, stream partial responses as the AI thinks, add reactions, and pin important messages. You enable whichever platforms you use in the settings file.</p>
+      <div class="impl-list">
+        <span>Telegram</span><span>Discord</span><span>Slack</span><span>WhatsApp</span><span>Matrix</span><span>iMessage</span><span>Email</span><span>Signal</span><span>Mattermost</span><span>Lark</span><span>Twitter</span><span>Reddit</span><span>Bluesky</span><span>Nostr</span><span>IRC</span><span>QQ</span><span>WeCom</span><span>DingTalk</span><span>VoiceCall</span><span>VoiceWake</span><span>CLI</span><span>Webhook</span><span>ClawdTalk</span><span>GmailPush</span><span>WATI</span><span>Mochat</span><span>Linq</span><span>NextcloudTalk</span>
+      </div>
+    </div>
+    <div class="subsec">
+      <div class="subsec-title">Web API</div>
+      <p>A built-in web server that lets external apps talk to the agent over HTTP. Supports standard web requests, real-time connections (WebSockets), and live event streams. Protected by <strong>authentication</strong> (one-time pairing codes), <strong>rate limiting</strong> (prevents spam), and <strong>encryption</strong>.</p>
+    </div>
+    <div class="subsec">
+      <div class="subsec-title">Public Access (Tunnel)</div>
+      <p>Makes the agent reachable from the internet, even if it's running on your local computer. Seven different tunnel services are supported, so platforms like Telegram or Slack can send webhook notifications to your agent.</p>
+      <div class="impl-list"><span>Cloudflare</span><span>Tailscale</span><span>Ngrok</span><span>Pinggy</span><span>OpenVPN</span><span>Custom</span><span>None</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="section" id="sec-2">
+  <div class="section-head" onclick="togSec(this)">
+    <div class="section-num" style="background:var(--accent)">2</div>
+    <span class="section-title">The Thinking Loop &#8212; How the Agent Reasons</span>
+    <span class="section-toggle">+</span>
+  </div>
+  <div class="section-body">
+    <p>This is the brain of the system. When a message arrives, it goes through a repeating cycle:</p>
+    <ol style="padding-left:18px; margin:8px 0;">
+      <li><strong>Build context</strong> &#8212; The system combines your message with the agent's personality, relevant memories, skill instructions, and language settings into one package for the AI.</li>
+      <li><strong>Ask the AI</strong> &#8212; Sends everything to the chosen AI model. As the AI writes its response, partial updates are streamed back so you see the reply forming in real time.</li>
+      <li><strong>Take action</strong> &#8212; If the AI decides it needs to do something (search the web, save a file, check the weather, etc.), the system runs a safety check, optionally asks for your approval, then executes the action.</li>
+      <li><strong>Repeat</strong> &#8212; If the AI needs more steps, the cycle continues. Once the AI has a final answer, it's sent back to you.</li>
+    </ol>
+    <p>Supporting features: <strong>message classification</strong> (understands what you're asking), <strong>memory retrieval</strong> (pulls in relevant past context), <strong>budget tracking</strong> (watches spending), <strong>reasoning traces</strong> (shows the AI's thought process), and <strong>conversation history</strong> management.</p>
+  </div>
+</div>
+
+<div class="section" id="sec-3">
+  <div class="section-head" onclick="togSec(this)">
+    <div class="section-num" style="background:var(--accent)">3</div>
+    <span class="section-title">AI Models &#8212; The Brains Behind the Answers</span>
+    <span class="section-toggle">+</span>
+  </div>
+  <div class="section-body">
+    <p>The system can use <strong>17 different AI services</strong>. You choose which one to use in your settings, and can even switch models mid-conversation. Each model can:</p>
+    <ul style="padding-left:18px; margin:8px 0;">
+      <li>Answer questions and hold conversations</li>
+      <li>Stream responses word-by-word (so you see the reply forming live)</li>
+      <li>Understand images and other media (if the model supports it)</li>
+    </ul>
+    <div class="impl-list">
+      <span>OpenAI (GPT)</span><span>Anthropic (Claude)</span><span>Google Gemini</span><span>Ollama (local)</span><span>OpenRouter</span><span>Azure OpenAI</span><span>AWS Bedrock</span><span>Telnyx</span><span>GitHub Copilot</span><span>Claude Code</span><span>Gemini CLI</span><span>Kilo CLI</span><span>OpenAI Codex</span><span>Any compatible API</span><span>GLM</span>
+    </div>
+    <p><strong>Auto-retry</strong>: If one AI service is down, the system automatically tries the next one. <strong>Smart routing</strong>: You can set rules like "use GPT-4 for coding questions and Claude for writing tasks".</p>
+  </div>
+</div>
+
+<div class="section" id="sec-4">
+  <div class="section-head" onclick="togSec(this)">
+    <div class="section-num" style="background:var(--accent)">4</div>
+    <span class="section-title">Action Parser &#8212; Understanding What the AI Wants to Do</span>
+    <span class="section-toggle">+</span>
+  </div>
+  <div class="section-body">
+    <p>When the AI decides it needs to take an action (like searching the web or saving a file), it expresses that in its response. The Action Parser reads the AI's output and figures out exactly what action to run. It works in two ways:</p>
+    <ul style="padding-left:18px; margin:8px 0;">
+      <li><strong>Built-in support</strong> &#8212; Modern AI models (like GPT-4 and Claude) can directly specify actions in a structured format. No guesswork needed.</li>
+      <li><strong>Text parsing</strong> &#8212; For simpler AI models that don't have built-in action support, the system reads specially formatted text in the AI's response to figure out what it wants to do.</li>
+    </ul>
+    <p>After parsing, the action request and its results are formatted and fed back into the conversation so the AI can use them in its next response.</p>
+  </div>
+</div>
+
+<div class="section" id="sec-5">
+  <div class="section-head" onclick="togSec(this)">
+    <div class="section-num" style="background:var(--green)">5</div>
+    <span class="section-title">Actions &#8212; What the Agent Can Actually Do</span>
+    <span class="section-toggle">+</span>
+  </div>
+  <div class="section-body">
+    <p>Over <strong>30 built-in actions</strong> the AI can take on your behalf. Each one has a name, a description (so the AI knows when to use it), and defined inputs/outputs.</p>
+    <div class="impl-list">
+      <span>Run commands</span><span>Read/write files</span><span>Find files</span><span>Search content</span><span>Git operations</span><span>Browse websites</span><span>Make web requests</span><span>Web search</span><span>Fetch web pages</span><span>Calculator</span><span>Weather</span><span>Draw on canvas</span><span>Remember/recall</span><span>Schedule tasks</span><span>Switch AI model</span><span>Forward to another agent</span><span>Send notifications</span><span>Delegate work</span><span>Run parallel tasks</span><span>Multi-step workflows</span><span>Signed actions</span><span>Ask you a question</span><span>Escalate to human</span><span>React to messages</span><span>External plugins</span>
+    </div>
+    <p>Safety guardrails are built in: actions are limited to your workspace folder, rate-limited to prevent runaway loops, and shell commands can optionally run in an isolated sandbox.</p>
+  </div>
+</div>
+
+<div class="section" id="sec-6">
+  <div class="section-head" onclick="togSec(this)">
+    <div class="section-num" style="background:var(--green)">6</div>
+    <span class="section-title">Hardware &#8212; Controlling Physical Devices</span>
+    <span class="section-toggle">+</span>
+  </div>
+  <div class="section-body">
+    <p>The agent can connect to <strong>physical hardware</strong> &#8212; microcontrollers, sensors, and single-board computers. Once connected, the hardware's capabilities (reading sensors, toggling pins, etc.) automatically become available as actions the AI can take.</p>
+    <div class="impl-list"><span>STM32 boards</span><span>Raspberry Pi</span><span>Arduino</span><span>ESP32</span><span>HTTP-bridged devices</span><span>Any serial device</span></div>
+    <p>Additional features include uploading code to boards, inspecting connected hardware, searching hardware documentation for technical details, and reading device memory maps.</p>
+  </div>
+</div>
+
+<div class="section" id="sec-7">
+  <div class="section-head" onclick="togSec(this)">
+    <div class="section-num" style="background:var(--green)">7</div>
+    <span class="section-title">Skills &amp; App Connectors &#8212; Extending What the Agent Knows</span>
+    <span class="section-toggle">+</span>
+  </div>
+  <div class="section-body">
+    <p><strong>Skills</strong> are add-on capability packs you can install &#8212; like apps for your phone. Each skill teaches the agent something new (e.g., "how to deploy a website" or "how to manage a database"). Skills can be browsed, installed, safety-checked, and tested before use.</p>
+    <p><strong>App Connectors</strong> link the agent to third-party services like Notion, Jira, Microsoft 365, LinkedIn, and others. Once connected, the agent can read and write to these services on your behalf &#8212; for example, creating Jira tickets or updating Notion pages.</p>
+  </div>
+</div>
+
+<div class="section" id="sec-8">
+  <div class="section-head" onclick="togSec(this)">
+    <div class="section-num" style="background:var(--purple)">8</div>
+    <span class="section-title">Memory &#8212; How the Agent Remembers Things</span>
+    <span class="section-toggle">+</span>
+  </div>
+  <div class="section-body">
+    <p>The agent can <strong>remember</strong> information across conversations. It can save facts, recall them later by searching for related topics (not just exact keywords), list everything it knows, and forget things when asked. Six different storage options are available:</p>
+    <div class="impl-list"><span>SQLite (database)</span><span>Markdown files</span><span>Lucid (advanced SQLite)</span><span>Qdrant (meaning-based search)</span><span>None (no memory)</span><span>Namespaced (isolated per topic)</span></div>
+    <p>Additional features include <strong>response caching</strong> (avoids asking the AI the same thing twice), <strong>multi-step retrieval</strong> (finds related memories even when the connection isn't obvious), <strong>knowledge graphs</strong> (structured relationships between facts), and <strong>meaning-based search</strong> (finds relevant memories even when you use different words).</p>
+  </div>
+</div>
+
+<div class="section" id="sec-9">
+  <div class="section-head" onclick="togSec(this)">
+    <div class="section-num" style="background:var(--purple)">9</div>
+    <span class="section-title">Runtime, Settings, Document Search, Multi-Agent</span>
+    <span class="section-toggle">+</span>
+  </div>
+  <div class="section-body">
+    <div class="subsec">
+      <div class="subsec-title">Runtime</div>
+      <p>Controls <em>where</em> the agent runs its commands. Two options: <strong>locally</strong> on your machine, or inside a <strong>Docker container</strong> (an isolated virtual environment) for added safety.</p>
+    </div>
+    <div class="subsec">
+      <div class="subsec-title">Settings</div>
+      <p>One configuration file controls the entire system: which AI to use, which messaging platforms to connect, security rules, memory storage, scheduled tasks, monitoring, integrations, and more. Workspaces keep different projects isolated from each other.</p>
+    </div>
+    <div class="subsec">
+      <div class="subsec-title">Document Search</div>
+      <p>The agent can search through reference documents (like PDF manuals or datasheets) to find specific information. It breaks large documents into searchable chunks and retrieves the most relevant sections when you ask a question.</p>
+    </div>
+    <div class="subsec">
+      <div class="subsec-title">Multi-Agent &amp; Delegation</div>
+      <p>The AI can hand off tasks to <strong>sub-agents</strong> &#8212; each with its own model, personality, and allowed tools. For example, a main GPT-4 agent can delegate research to a Claude-based "researcher" sub-agent that only has web search access. Sub-agents run inside the same system (no separate process) and return their results as normal tool output.</p>
+      <p style="margin-top:8px;"><strong>Background mode:</strong> long-running tasks run asynchronously; the parent gets a task ID and can check progress or cancel later. <strong>Swarm mode:</strong> orchestrate multiple agents at once &#8212; sequentially, in parallel, or with a router that picks the best specialist for each task.</p>
+      <p style="margin-top:8px;"><strong>Nodes</strong> are a separate feature &#8212; they connect multiple independent agent instances across machines via the gateway for distributed work.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" id="sec-10">
+  <div class="section-head" onclick="togSec(this)">
+    <div class="section-num" style="background:var(--pink)">10</div>
+    <span class="section-title">Security &#8212; Keeping Everything Safe</span>
+    <span class="section-toggle">+</span>
+  </div>
+  <div class="section-body">
+    <div class="subsec">
+      <div class="subsec-title">Autonomy Levels</div>
+      <p>You decide how much freedom the agent has. Three modes: <strong>Read-Only</strong> (can only look, never change anything), <strong>Supervised</strong> (asks you before doing anything risky), and <strong>Full</strong> (acts independently). The system also classifies how risky each action is and limits how often any single user can trigger actions.</p>
+    </div>
+    <div class="subsec">
+      <div class="subsec-title">Sandbox (Isolation)</div>
+      <p>When the agent runs commands on your computer, it can do so inside an isolated "sandbox" that prevents it from touching anything outside its allowed workspace. The system automatically picks the best isolation method for your operating system:</p>
+      <div class="impl-list"><span>Docker</span><span>Firejail</span><span>Bubblewrap</span><span>Landlock (Linux)</span><span>Seatbelt (macOS)</span></div>
+    </div>
+    <div class="subsec">
+      <div class="subsec-title">Human Approval</div>
+      <p>For high-risk actions, the agent pauses and asks for your confirmation before proceeding. You can approve once, deny, or say "always allow this" so it won't ask again for that action.</p>
+    </div>
+    <div class="subsec">
+      <div class="subsec-title">Trust Score &amp; Action Proof</div>
+      <p>The system tracks how well the agent is performing over time. If it makes mistakes, its trust score drops and it may lose autonomy. For critical actions, cryptographic signing creates a tamper-proof record of exactly what was authorized and by whom.</p>
+    </div>
+    <p style="margin-top:10px">Additional protections: <strong>prompt injection detection</strong> (blocks manipulation attempts), <strong>access control policies</strong>, <strong>hardware-key authentication</strong>, <strong>emergency stop</strong> (halt everything instantly), <strong>secrets management</strong> (safe storage for passwords/keys), and <strong>audit logging</strong> (full record of every action).</p>
+  </div>
+</div>
+
+<div class="section" id="sec-11">
+  <div class="section-head" onclick="togSec(this)">
+    <div class="section-num" style="background:var(--pink)">11</div>
+    <span class="section-title">Monitoring &amp; Budget &#8212; Watching Performance and Costs</span>
+    <span class="section-toggle">+</span>
+  </div>
+  <div class="section-body">
+    <p>The system keeps detailed records of everything that happens: AI calls, actions taken, messages sent, cache usage, scheduled task runs, and errors. Five different monitoring backends are available, from simple log files to enterprise-grade dashboards:</p>
+    <div class="impl-list"><span>Log files</span><span>Detailed logs</span><span>Prometheus (metrics)</span><span>OpenTelemetry (traces)</span><span>Silent (off)</span><span>Multiple at once</span></div>
+    <p><strong>Budget control</strong> tracks how much you're spending on AI calls per conversation and per session. You can set a spending limit, and the agent will automatically stop when the budget is reached. <strong>Health Check</strong> runs diagnostics across every subsystem and reports issues by severity.</p>
+  </div>
+</div>
+
+<div class="section" id="sec-12">
+  <div class="section-head" onclick="togSec(this)">
+    <div class="section-num" style="background:var(--cyan)">12</div>
+    <span class="section-title">Scheduled Tasks &#8212; Making the Agent Work on Autopilot</span>
+    <span class="section-toggle">+</span>
+  </div>
+  <div class="section-body">
+    <p>All automation features feed work back through the same thinking cycle, so the agent handles scheduled tasks exactly like user messages:</p>
+    <div class="subsec">
+      <div class="subsec-title">Schedules</div>
+      <p>Run tasks on a timer: every hour, daily at 9am, once next Tuesday, or after a 5-minute delay. Scheduled jobs can be simple commands or full AI conversations with specific instructions.</p>
+    </div>
+    <div class="subsec">
+      <div class="subsec-title">Playbooks</div>
+      <p>Multi-step procedures the agent follows, like a recipe. Example: "When a new deploy happens, run tests, check logs, and post a summary to Slack." The agent can list available playbooks and run them on demand.</p>
+    </div>
+    <div class="subsec">
+      <div class="subsec-title">Auto-Rules</div>
+      <p>"When X happens, do Y" rules. For example: "When someone mentions 'urgent', send a notification" or "When a new file is saved, run the linter." Rules can trigger messages, playbooks, commands, or new scheduled tasks.</p>
+    </div>
+    <div class="subsec">
+      <div class="subsec-title">Recurring Jobs</div>
+      <p>Background tasks that run periodically with their own context. Each run is logged so you can see what happened and when.</p>
+    </div>
+    <div class="subsec">
+      <div class="subsec-title">Event Hooks</div>
+      <p>Custom logic that runs at key moments in the agent's lifecycle: when the server starts, when a session opens, before/after the AI responds, before/after an action runs, or when a message is sent. Useful for logging, filtering, or modifying behavior.</p>
+    </div>
+    <div class="subsec">
+      <div class="subsec-title">Heartbeat &amp; Background Mode</div>
+      <p>The agent can run as a background service on your computer (like a system service). It periodically checks in with a "heartbeat" to confirm it's still running, and can be managed with simple start/stop/restart commands.</p>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+function togSec(head) {
+  head.closest('.section').classList.toggle('open');
+}
+function showSec(n) {
+  if (n < 1) return;
+  var sec = document.getElementById('sec-' + n);
+  if (!sec) return;
+  sec.classList.add('open');
+  sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+</script>
+</body>
+</html>
