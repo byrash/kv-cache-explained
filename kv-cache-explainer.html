@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KV Cache Deep Dive — Interactive Explainer</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a1a;
+  --surface: #12122a;
+  --surface2: #1a1a3a;
+  --border: #2a2a5a;
+  --text: #e8e8f0;
+  --text-dim: #8888aa;
+  --cyan: #00d4ff;
+  --green: #00ff88;
+  --orange: #ff6b35;
+  --pink: #ff006e;
+  --gold: #ffd700;
+  --red: #ff4444;
+  --purple: #aa66ff;
+  --blue: #4488ff;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+.hero {
+  text-align: center;
+  padding: 60px 20px 40px;
+  background: linear-gradient(180deg, #0f0f2a 0%, var(--bg) 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 50% 50%, rgba(0,212,255,0.06) 0%, transparent 50%);
+  animation: pulse 8s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+
+.hero h1 {
+  font-family: 'Space Mono', monospace;
+  font-size: 2.8rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--cyan), var(--green));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.hero .subtitle {
+  font-size: 1.1rem;
+  color: var(--text-dim);
+  font-weight: 300;
+  position: relative;
+}
+
+nav {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(10,10,26,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+nav button {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  padding: 8px 16px;
+  background: var(--surface);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+nav button:hover, nav button.active {
+  background: var(--surface2);
+  color: var(--cyan);
+  border-color: var(--cyan);
+  box-shadow: 0 0 12px rgba(0,212,255,0.2);
+}
+
+.section {
+  display: none;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+  animation: fadeIn 0.5s ease;
+}
+
+.section.active { display: block; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+h2 {
+  font-family: 'Space Mono', monospace;
+  font-size: 1.6rem;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--border);
+}
+
+h3 {
+  font-family: 'Space Mono', monospace;
+  font-size: 1.1rem;
+  color: var(--cyan);
+  margin: 28px 0 12px;
+}
+
+p { line-height: 1.7; margin-bottom: 16px; color: var(--text); font-size: 0.95rem; }
+
+.highlight { color: var(--cyan); font-weight: 700; }
+.highlight-green { color: var(--green); font-weight: 700; }
+.highlight-orange { color: var(--orange); font-weight: 700; }
+.highlight-gold { color: var(--gold); font-weight: 700; }
+.highlight-pink { color: var(--pink); font-weight: 700; }
+
+.callout {
+  background: var(--surface);
+  border-left: 4px solid var(--cyan);
+  padding: 16px 20px;
+  border-radius: 0 8px 8px 0;
+  margin: 20px 0;
+  font-size: 0.9rem;
+}
+
+.callout.warning {
+  border-left-color: var(--orange);
+  background: rgba(255,107,53,0.08);
+}
+
+.callout.success {
+  border-left-color: var(--green);
+  background: rgba(0,255,136,0.06);
+}
+
+.formula-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px 0;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.85rem;
+  text-align: center;
+  color: var(--gold);
+}
+
+/* ── Interactive Demo ── */
+.demo-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin: 24px 0;
+}
+
+.demo-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.demo-controls button {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.8rem;
+  padding: 8px 18px;
+  background: transparent;
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.demo-controls button:hover {
+  background: var(--cyan);
+  color: var(--bg);
+}
+
+.demo-controls button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.step-display {
+  min-height: 280px;
+  position: relative;
+}
+
+.token-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  animation: slideIn 0.4s ease;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.token {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  min-width: 60px;
+  transition: all 0.3s;
+}
+
+.token.new { background: var(--cyan); color: var(--bg); }
+.token.cached { background: rgba(255,215,0,0.15); color: var(--gold); border: 1px solid var(--gold); }
+.token.redundant { background: rgba(255,107,53,0.2); color: var(--orange); border: 1px solid var(--orange); }
+.token.output { background: var(--green); color: var(--bg); }
+
+.arrow { color: var(--text-dim); font-size: 1.2rem; }
+
+.cache-display {
+  background: rgba(255,215,0,0.05);
+  border: 2px solid var(--gold);
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.cache-display h4 {
+  font-family: 'Space Mono', monospace;
+  color: var(--gold);
+  font-size: 0.85rem;
+  margin-bottom: 10px;
+}
+
+.cache-entries {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cache-entry {
+  display: flex;
+  gap: 2px;
+  animation: cacheIn 0.5s ease;
+}
+
+@keyframes cacheIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.cache-entry .k {
+  background: rgba(255,0,110,0.2);
+  color: var(--pink);
+  border: 1px solid var(--pink);
+  padding: 4px 8px;
+  border-radius: 4px 0 0 4px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+}
+
+.cache-entry .v {
+  background: rgba(0,255,136,0.12);
+  color: var(--green);
+  border: 1px solid var(--green);
+  padding: 4px 8px;
+  border-radius: 0 4px 4px 0;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.7rem;
+}
+
+.stats-bar {
+  display: flex;
+  gap: 20px;
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--surface2);
+  border-radius: 8px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+}
+
+.stat { display: flex; flex-direction: column; gap: 4px; }
+.stat label { color: var(--text-dim); }
+.stat .val { font-weight: 700; }
+.stat .val.good { color: var(--green); }
+.stat .val.bad { color: var(--red); }
+
+/* ── Memory Calculator ── */
+.calc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.calc-input {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.calc-input label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.calc-input input, .calc-input select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.85rem;
+}
+
+.calc-input input:focus, .calc-input select:focus {
+  outline: none;
+  border-color: var(--cyan);
+}
+
+.calc-result {
+  background: var(--surface);
+  border: 2px solid var(--gold);
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  margin: 20px 0;
+}
+
+.calc-result .size {
+  font-family: 'Space Mono', monospace;
+  font-size: 2rem;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.calc-result .context {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-top: 8px;
+}
+
+/* ── Comparison Table ── */
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  font-size: 0.85rem;
+}
+
+.comparison-table th {
+  background: var(--surface2);
+  padding: 10px 14px;
+  text-align: left;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--cyan);
+  border-bottom: 2px solid var(--border);
+}
+
+.comparison-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.comparison-table tr:hover td {
+  background: rgba(0,212,255,0.04);
+}
+
+/* ── GQA Animation ── */
+.gqa-viz {
+  display: flex;
+  justify-content: space-around;
+  gap: 20px;
+  margin: 24px 0;
+  flex-wrap: wrap;
+}
+
+.gqa-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  flex: 1;
+  min-width: 250px;
+  text-align: center;
+  transition: all 0.3s;
+}
+
+.gqa-card:hover {
+  border-color: var(--cyan);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+.gqa-card h4 {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+
+.head-row {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.head {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.55rem;
+  font-weight: 700;
+}
+
+.head.q { background: rgba(0,212,255,0.2); border: 2px solid var(--cyan); color: var(--cyan); }
+.head.k { background: rgba(255,0,110,0.2); border: 2px solid var(--pink); color: var(--pink); }
+.head.v { background: rgba(0,255,136,0.15); border: 2px solid var(--green); color: var(--green); }
+
+.cache-bar {
+  height: 8px;
+  border-radius: 4px;
+  margin: 12px auto 4px;
+  max-width: 200px;
+  position: relative;
+  background: var(--surface2);
+}
+
+.cache-bar .fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 1s ease;
+}
+
+.cache-pct {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.conn-lines {
+  display: flex;
+  justify-content: center;
+  height: 20px;
+  margin: 2px 0;
+  align-items: center;
+  color: var(--text-dim);
+  font-size: 0.6rem;
+  letter-spacing: 2px;
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>KV Cache</h1>
+  <p class="subtitle">The optimization that makes real-time LLM inference possible</p>
+</div>
+
+<nav id="nav">
+  <button class="active" onclick="showSection('s1')">1. The Problem</button>
+  <button onclick="showSection('s2')">2. Q, K, V</button>
+  <button onclick="showSection('s3')">3. KV Cache</button>
+  <button onclick="showSection('s4')">4. Interactive Demo</button>
+  <button onclick="showSection('s5')">5. Prefill vs Decode</button>
+  <button onclick="showSection('s6')">6. Memory</button>
+  <button onclick="showSection('s7')">7. Optimizations</button>
+  <button onclick="showSection('s8')">8. Summary</button>
+</nav>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SECTION 1: THE PROBLEM                       -->
+<!-- ════════════════════════════════════════════ -->
+<div id="s1" class="section active">
+  <h2>1. The Problem: Redundant Recomputation</h2>
+
+  <h3>First — How Does an LLM Actually Generate Text?</h3>
+  <p>An LLM does <strong>not</strong> generate a whole sentence at once. It works like someone typing one letter at a time, where each letter depends on everything typed before. Specifically:</p>
+
+  <div class="callout">
+    Given a sequence so far, the model predicts <strong>only the next token</strong>. Then it appends that token to the sequence and predicts again. And again. And again. This is called <span class="highlight">autoregressive generation</span>.
+  </div>
+
+  <p>Let's trace through generating <em>"The cat sat on the mat"</em> step by step. Suppose the user typed nothing — the model starts with just a seed:</p>
+
+  <div class="demo-container">
+    <div style="font-family:'Space Mono'; font-size:0.8rem; margin-bottom:12px; color:var(--cyan);">Each step: feed ALL tokens so far → model predicts ONE next token</div>
+
+    <div class="token-row">
+      <span style="font-family:'Space Mono'; font-size:0.7rem; color:var(--text-dim); min-width:50px;">Step 1</span>
+      <span style="font-size:0.75rem; color:var(--text-dim);">Feed:</span>
+      <div class="token new" style="font-size:0.7rem; padding:5px 10px;">The</div>
+      <span class="arrow">→</span>
+      <span style="font-size:0.75rem; color:var(--text-dim);">Model thinks: "After 'The', the most likely word is..."</span>
+      <span class="arrow">→</span>
+      <div class="token output" style="font-size:0.7rem; padding:5px 10px;">cat</div>
+    </div>
+
+    <div class="token-row">
+      <span style="font-family:'Space Mono'; font-size:0.7rem; color:var(--text-dim); min-width:50px;">Step 2</span>
+      <span style="font-size:0.75rem; color:var(--text-dim);">Feed:</span>
+      <div class="token new" style="font-size:0.7rem; padding:5px 10px;">The</div>
+      <div class="token new" style="font-size:0.7rem; padding:5px 10px;">cat</div>
+      <span class="arrow">→</span>
+      <span style="font-size:0.75rem; color:var(--text-dim);">"After 'The cat', likely..."</span>
+      <span class="arrow">→</span>
+      <div class="token output" style="font-size:0.7rem; padding:5px 10px;">sat</div>
+    </div>
+
+    <div class="token-row">
+      <span style="font-family:'Space Mono'; font-size:0.7rem; color:var(--text-dim); min-width:50px;">Step 3</span>
+      <span style="font-size:0.75rem; color:var(--text-dim);">Feed:</span>
+      <div class="token new" style="font-size:0.7rem; padding:5px 10px;">The</div>
+      <div class="token new" style="font-size:0.7rem; padding:5px 10px;">cat</div>
+      <div class="token new" style="font-size:0.7rem; padding:5px 10px;">sat</div>
+      <span class="arrow">→</span>
+      <span style="font-size:0.75rem; color:var(--text-dim);">"After 'The cat sat'..."</span>
+      <span class="arrow">→</span>
+      <div class="token output" style="font-size:0.7rem; padding:5px 10px;">on</div>
+    </div>
+  </div>
+
+  <p>Notice: at Step 3, the model feeds <strong>["The", "cat", "sat"]</strong> — all three — just to predict one word "on".</p>
+
+  <h3>Why Does It Need All Previous Tokens?</h3>
+  <p>Because <span class="highlight">context matters</span>. The next word depends on the <em>meaning</em> built from all prior words:</p>
+
+  <div class="demo-container">
+    <div style="font-size:0.85rem; line-height:2;">
+      <div>"The cat sat on the <strong>___</strong>" → model predicts <span class="highlight-green">"mat"</span> (because cats sit on things)</div>
+      <div>"The bird sat on the <strong>___</strong>" → model might predict <span class="highlight-green">"branch"</span> (different subject = different prediction)</div>
+      <div>"The CEO sat on the <strong>___</strong>" → model might predict <span class="highlight-green">"board"</span> (different context entirely)</div>
+    </div>
+    <div style="margin-top:12px; font-size:0.8rem; color:var(--text-dim);">The model must "re-read" the whole sentence each time to understand context. Changing even one early word changes everything downstream.</div>
+  </div>
+
+  <h3>The Redundancy Problem</h3>
+  <p>Here's where it gets wasteful. The model doesn't just "read" tokens — it does <strong>heavy math</strong> on each one. For every token, it computes internal vectors (we'll call them K and V for now — explained in the next section). Watch the waste grow:</p>
+
+  <div class="demo-container">
+    <div id="naive-demo"></div>
+  </div>
+
+  <p>Look at <span class="highlight-orange">"The"</span>: its internal vectors are computed at Step 1, then <strong>thrown away</strong>, then recomputed identically at Step 2, thrown away again, recomputed at Step 3... Every orange block is wasted work.</p>
+
+  <div class="callout warning">
+    <strong>Why is this so bad?</strong> For a sequence of <em>n</em> tokens, total work = 1 + 2 + 3 + ... + n = <strong>n(n+1)/2</strong>. That's <span class="highlight-orange">O(n&sup2;)</span>.<br><br>
+    <strong>Real numbers:</strong> Generating a 1,000-token response = ~500,000 token-level computations. A 10,000-token response = ~50,000,000. It grows <em>quadratically</em> — every extra token makes ALL previous tokens get reprocessed.
+  </div>
+
+  <h3>The Key Realization</h3>
+  <p>Here's the critical observation that makes KV Cache possible:</p>
+
+  <div class="callout success">
+    <strong>The internal vectors (K and V) computed for "The" at Step 1 are <em>exactly identical</em> to the ones computed for "The" at Step 2, 3, 4, ...</strong><br><br>
+    Why? Because K and V for a token depend only on: (1) the token itself, and (2) its position in the sequence. Neither of these changes between steps. Future tokens don't affect past tokens' K,V values — this is enforced by the <span class="highlight">causal mask</span> in the attention mechanism.<br><br>
+    <strong>So why recompute them? Just save them the first time!</strong> That's KV Cache.
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SECTION 2: Q, K, V                           -->
+<!-- ════════════════════════════════════════════ -->
+<div id="s2" class="section">
+  <h2>2. Understanding Q, K, V — With Our Example</h2>
+
+  <p>Let's make Q, K, V concrete using our sentence <strong>"The cat sat on"</strong>. Forget the math for a moment — let's build intuition first.</p>
+
+  <h3>The Classroom Analogy</h3>
+  <p>Imagine a classroom where students need to collaborate on writing. Each student (token) carries three cards:</p>
+
+  <div class="demo-container" style="background:var(--surface2);">
+    <div style="display:flex; flex-direction:column; gap:20px;">
+
+      <div style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+        <div style="min-width:80px;">
+          <div style="font-family:'Space Mono'; color:var(--cyan); font-size:1.2rem; font-weight:700;">Q</div>
+          <div style="color:var(--cyan); font-size:0.75rem;">Query</div>
+        </div>
+        <div style="flex:1; min-width:200px;">
+          <div style="font-size:0.9rem; font-weight:700; margin-bottom:4px;">= "The question I'm asking"</div>
+          <div style="font-size:0.8rem; color:var(--text-dim);">Each token raises its hand and asks: <em>"Who in this sentence is relevant to me? Who should I pay attention to?"</em></div>
+          <div style="font-size:0.8rem; color:var(--cyan); margin-top:4px;">Only the <strong>newest</strong> token's Q matters at each generation step.</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+        <div style="min-width:80px;">
+          <div style="font-family:'Space Mono'; color:var(--pink); font-size:1.2rem; font-weight:700;">K</div>
+          <div style="color:var(--pink); font-size:0.75rem;">Key</div>
+        </div>
+        <div style="flex:1; min-width:200px;">
+          <div style="font-size:0.9rem; font-weight:700; margin-bottom:4px;">= "My name tag / label"</div>
+          <div style="font-size:0.8rem; color:var(--text-dim);">Each token wears a badge describing <em>what it is</em>: its grammatical role, meaning, relationships. Other tokens match their Query against this badge to see if <em>this</em> token is relevant.</div>
+          <div style="font-size:0.8rem; color:var(--pink); margin-top:4px;">Once computed, <strong>never changes</strong>. Badge doesn't change just because a new student walks in.</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+        <div style="min-width:80px;">
+          <div style="font-family:'Space Mono'; color:var(--green); font-size:1.2rem; font-weight:700;">V</div>
+          <div style="color:var(--green); font-size:0.75rem;">Value</div>
+        </div>
+        <div style="flex:1; min-width:200px;">
+          <div style="font-size:0.9rem; font-weight:700; margin-bottom:4px;">= "The actual information I carry"</div>
+          <div style="font-size:0.8rem; color:var(--text-dim);">Once a token is deemed relevant (via Q-K matching), its Value is what gets <em>used</em>. It's the substance — the semantic content that flows into the output.</div>
+          <div style="font-size:0.8rem; color:var(--green); margin-top:4px;">Once computed, <strong>never changes</strong>. The info a token carries doesn't change when new tokens appear.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <h3>Concrete Example: "The cat sat on" → predicting the next word</h3>
+  <p>The model needs to predict what comes after "on". Let's see what Q, K, V look like for each token:</p>
+
+  <div class="demo-container">
+    <table class="comparison-table" style="margin:0;">
+      <tr>
+        <th>Token</th>
+        <th style="color:var(--pink);">Key (K) — "What am I?"</th>
+        <th style="color:var(--green);">Value (V) — "What info do I carry?"</th>
+      </tr>
+      <tr>
+        <td><div class="token new" style="font-size:0.7rem; padding:4px 10px; display:inline-flex;">The</div></td>
+        <td style="font-size:0.8rem;">"I'm a determiner/article, I signal a noun is coming next"</td>
+        <td style="font-size:0.8rem;">"I indicate <em>definiteness</em> — a specific thing, not just any thing"</td>
+      </tr>
+      <tr>
+        <td><div class="token new" style="font-size:0.7rem; padding:4px 10px; display:inline-flex;">cat</div></td>
+        <td style="font-size:0.8rem;">"I'm a noun, an animal, the subject of this sentence"</td>
+        <td style="font-size:0.8rem;">"I carry the concept: small, furry, domestic animal — the actor doing the action"</td>
+      </tr>
+      <tr>
+        <td><div class="token new" style="font-size:0.7rem; padding:4px 10px; display:inline-flex;">sat</div></td>
+        <td style="font-size:0.8rem;">"I'm a verb, past tense, the main action"</td>
+        <td style="font-size:0.8rem;">"I carry the concept: physical position, resting, downward posture"</td>
+      </tr>
+      <tr>
+        <td><div class="token new" style="font-size:0.7rem; padding:4px 10px; display:inline-flex;">on</div></td>
+        <td style="font-size:0.8rem;">"I'm a preposition, I connect the action to a location"</td>
+        <td style="font-size:0.8rem;">"I indicate: a surface relationship, something is coming that names WHERE"</td>
+      </tr>
+    </table>
+  </div>
+
+  <p style="margin-top:16px;">Now the model needs to predict the next word. The new position (position 5) generates a <span class="highlight">Query</span>:</p>
+
+  <div class="demo-container" style="border-color: var(--cyan);">
+    <div style="font-family:'Space Mono'; color:var(--cyan); font-size:0.85rem; margin-bottom:12px;">Query from position 5: "What surface/location does a cat typically sit on?"</div>
+
+    <div style="font-size:0.85rem; margin-bottom:12px;">This Query gets compared against <strong>every token's Key</strong> to produce attention scores:</div>
+
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span style="font-family:'Space Mono'; font-size:0.7rem; color:var(--cyan); min-width:30px;">Q</span>
+        <span style="font-size:0.75rem; color:var(--text-dim);">vs</span>
+        <span style="font-family:'Space Mono'; font-size:0.7rem; color:var(--pink);">K<sub>The</sub></span>
+        <span style="font-size:0.75rem; color:var(--text-dim);">→ score:</span>
+        <div style="background:rgba(255,107,53,0.15); padding:2px 8px; border-radius:4px; font-family:'Space Mono'; font-size:0.75rem; color:var(--orange);">0.05</div>
+        <span style="font-size:0.7rem; color:var(--text-dim);">(article is not very relevant to predicting location)</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span style="font-family:'Space Mono'; font-size:0.7rem; color:var(--cyan); min-width:30px;">Q</span>
+        <span style="font-size:0.75rem; color:var(--text-dim);">vs</span>
+        <span style="font-family:'Space Mono'; font-size:0.7rem; color:var(--pink);">K<sub>cat</sub></span>
+        <span style="font-size:0.75rem; color:var(--text-dim);">→ score:</span>
+        <div style="background:rgba(0,255,136,0.15); padding:2px 8px; border-radius:4px; font-family:'Space Mono'; font-size:0.75rem; color:var(--green);">0.45</div>
+        <span style="font-size:0.7rem; color:var(--text-dim);">(the SUBJECT is very relevant — cats sit on specific things!)</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span style="font-family:'Space Mono'; font-size:0.7rem; color:var(--cyan); min-width:30px;">Q</span>
+        <span style="font-size:0.75rem; color:var(--text-dim);">vs</span>
+        <span style="font-family:'Space Mono'; font-size:0.7rem; color:var(--pink);">K<sub>sat</sub></span>
+        <span style="font-size:0.75rem; color:var(--text-dim);">→ score:</span>
+        <div style="background:rgba(0,255,136,0.12); padding:2px 8px; border-radius:4px; font-family:'Space Mono'; font-size:0.75rem; color:var(--green);">0.35</div>
+        <span style="font-size:0.7rem; color:var(--text-dim);">(verb matters — "sat" implies a surface/furniture)</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span style="font-family:'Space Mono'; font-size:0.7rem; color:var(--cyan); min-width:30px;">Q</span>
+        <span style="font-size:0.75rem; color:var(--text-dim);">vs</span>
+        <span style="font-family:'Space Mono'; font-size:0.7rem; color:var(--pink);">K<sub>on</sub></span>
+        <span style="font-size:0.75rem; color:var(--text-dim);">→ score:</span>
+        <div style="background:rgba(255,107,53,0.15); padding:2px 8px; border-radius:4px; font-family:'Space Mono'; font-size:0.75rem; color:var(--orange);">0.15</div>
+        <span style="font-size:0.7rem; color:var(--text-dim);">(preposition helps but the subject+verb matter more)</span>
+      </div>
+    </div>
+
+    <div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border);">
+      <div style="font-size:0.85rem; margin-bottom:8px;">Then these weights are applied to each token's <span class="highlight-green">Value</span>:</div>
+      <div style="font-family:'Space Mono'; font-size:0.8rem; line-height:2;">
+        <span style="color:var(--text-dim);">Output</span> = 
+        <span style="color:var(--orange);">0.05</span>&times;<span style="color:var(--green);">V<sub>The</sub></span> +
+        <span style="color:var(--green);">0.45</span>&times;<span style="color:var(--green);">V<sub>cat</sub></span> +
+        <span style="color:var(--green);">0.35</span>&times;<span style="color:var(--green);">V<sub>sat</sub></span> +
+        <span style="color:var(--orange);">0.15</span>&times;<span style="color:var(--green);">V<sub>on</sub></span>
+      </div>
+      <div style="font-size:0.8rem; color:var(--text-dim); margin-top:4px;">= a blend heavily weighted toward "cat" (what's sitting) and "sat" (the action), which together suggest → <span class="highlight-green">"the"</span> (then "mat")</div>
+    </div>
+  </div>
+
+  <h3>How Q, K, V Are Actually Computed</h3>
+  <p>Under the hood, each token's embedding (a vector of numbers representing the word) is multiplied by three learned weight matrices:</p>
+
+  <div class="demo-container">
+    <div style="text-align:center; margin-bottom:16px;">
+      <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+        <div class="token new" style="font-size:0.75rem; padding:6px 12px;">cat</div>
+        <span style="color:var(--text-dim); align-self:center; font-size:0.8rem;">→ embedding vector [0.23, -0.87, 0.45, ...]</span>
+      </div>
+      <div style="display:flex; justify-content:center; gap:24px; flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div style="font-size:0.7rem; color:var(--text-dim);">embedding &times;</div>
+          <div style="font-family:'Space Mono'; color:var(--cyan); font-size:0.9rem; font-weight:700; background:rgba(0,212,255,0.1); padding:6px 12px; border-radius:4px; border:1px solid var(--cyan);">W<sub>Q</sub></div>
+          <div style="font-size:0.7rem; color:var(--text-dim); margin-top:4px;">↓</div>
+          <div style="font-family:'Space Mono'; color:var(--cyan); font-size:0.85rem;">Q<sub>cat</sub></div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:0.7rem; color:var(--text-dim);">embedding &times;</div>
+          <div style="font-family:'Space Mono'; color:var(--pink); font-size:0.9rem; font-weight:700; background:rgba(255,0,110,0.1); padding:6px 12px; border-radius:4px; border:1px solid var(--pink);">W<sub>K</sub></div>
+          <div style="font-size:0.7rem; color:var(--text-dim); margin-top:4px;">↓</div>
+          <div style="font-family:'Space Mono'; color:var(--pink); font-size:0.85rem;">K<sub>cat</sub></div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:0.7rem; color:var(--text-dim);">embedding &times;</div>
+          <div style="font-family:'Space Mono'; color:var(--green); font-size:0.9rem; font-weight:700; background:rgba(0,255,136,0.1); padding:6px 12px; border-radius:4px; border:1px solid var(--green);">W<sub>V</sub></div>
+          <div style="font-size:0.7rem; color:var(--text-dim); margin-top:4px;">↓</div>
+          <div style="font-family:'Space Mono'; color:var(--green); font-size:0.85rem;">V<sub>cat</sub></div>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:0.8rem; color:var(--text-dim); text-align:center;">W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub> are <strong>learned during training</strong> and <strong>fixed during inference</strong>. Same matrices used for every token.</div>
+  </div>
+
+  <div class="formula-box">
+    Attention(Q, K, V) = softmax( Q &middot; K<sup>T</sup> / &radic;d<sub>k</sub> ) &middot; V
+    <div style="margin-top:8px; color:var(--text-dim); font-size:0.7rem;">
+      Q&middot;K<sup>T</sup> = "how relevant is each token?" &nbsp;|&nbsp; softmax = "normalize to weights" &nbsp;|&nbsp; &middot;V = "blend the information"
+    </div>
+  </div>
+
+  <h3>Why K and V Never Change — The Crucial Point</h3>
+
+  <div class="callout success">
+    <strong>K<sub>cat</sub></strong> = embedding("cat") &times; W<sub>K</sub><br>
+    <strong>V<sub>cat</sub></strong> = embedding("cat") &times; W<sub>V</sub><br><br>
+    Both the embedding of "cat" and the weight matrices W<sub>K</sub>, W<sub>V</sub> are <strong>fixed</strong> during inference. They don't change when you add "sat" or "on" later. So K<sub>cat</sub> computed at Step 1 is <strong>byte-for-byte identical</strong> to K<sub>cat</sub> at Step 5.<br><br>
+    <strong>This is the entire foundation of KV Cache:</strong> since K and V for past tokens are deterministic and immutable, <em>compute them once, store them, and reuse them forever</em>.
+  </div>
+
+  <h3>Why NOT Cache Q?</h3>
+  <p>Think about it with our example:</p>
+  <ul style="margin-left:20px; line-height:2.2; font-size:0.9rem;">
+    <li>At Step 3, when we predict "on", the Query for position 4 asks: <em>"What follows 'The cat sat'?"</em></li>
+    <li>At Step 4, when we predict "the", the Query for position 5 asks: <em>"What follows 'The cat sat on'?"</em></li>
+    <li>These are <strong>different questions from different positions</strong>. We never ask the same Q twice.</li>
+    <li>But K<sub>cat</sub> ("I'm a noun, the subject") is needed at Step 2, 3, 4, 5, ... — every future token needs to know about "cat".</li>
+    <li>So: <span class="highlight">Q is use-once</span>, <span class="highlight-pink">K is use-forever</span>, <span class="highlight-green">V is use-forever</span>. Cache the ones used forever.</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SECTION 3: KV CACHE                          -->
+<!-- ════════════════════════════════════════════ -->
+<div id="s3" class="section">
+  <h2>3. KV Cache: The Solution</h2>
+
+  <p>The idea is beautifully simple: <span class="highlight-gold">store all previously computed Key and Value vectors in GPU memory</span>, so each generation step only needs to:</p>
+
+  <ol style="margin-left:20px; line-height:2.2; font-size:0.9rem;">
+    <li>Compute Q, K, V for <strong>only the new token</strong></li>
+    <li><strong>Append</strong> the new K,V to the cache</li>
+    <li><strong>Read</strong> all previous K,V from the cache</li>
+    <li>Run attention: new Q against all cached K's → weight all cached V's</li>
+  </ol>
+
+  <h3>Step-by-Step Walkthrough</h3>
+  <div class="demo-container">
+    <div id="kv-walkthrough"></div>
+  </div>
+
+  <div class="callout success">
+    <strong>Result:</strong> Each step does exactly <strong>1 new computation</strong> + a cache read. Total for n tokens: <span class="highlight-green">O(n)</span> instead of O(n&sup2;). In practice this means <strong>10-100x faster inference</strong>.
+  </div>
+
+  <h3>Why Only K and V? Why Not Q?</h3>
+  <p>The Query vector is only ever used at the step it's created — it asks "what's relevant to ME?" and then it's done. We never need a past token's Q again. But every past token's <span class="highlight-pink">K</span> (its identity label) and <span class="highlight-green">V</span> (its information content) must be available for ALL future tokens to attend to. That's exactly what the cache stores.</p>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SECTION 4: INTERACTIVE DEMO                  -->
+<!-- ════════════════════════════════════════════ -->
+<div id="s4" class="section">
+  <h2>4. Interactive Demo: See KV Cache in Action</h2>
+
+  <p>Click through each step to see how the KV Cache grows and how computation is saved.</p>
+
+  <div class="demo-container">
+    <div class="demo-controls">
+      <button onclick="demoStep()" id="step-btn">Next Step →</button>
+      <button onclick="demoReset()">Reset</button>
+      <span style="font-family:'Space Mono'; font-size:0.75rem; color:var(--text-dim); align-self:center;" id="step-label">Step 0 / 6</span>
+    </div>
+
+    <div class="step-display" id="interactive-steps"></div>
+
+    <div class="cache-display">
+      <h4>KV Cache (GPU Memory)</h4>
+      <div class="cache-entries" id="cache-entries"></div>
+      <div id="cache-empty" style="color:var(--text-dim); font-size:0.8rem;">[ empty ]</div>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat">
+        <label>New Computations</label>
+        <div class="val good" id="stat-new">0</div>
+      </div>
+      <div class="stat">
+        <label>Cache Reads</label>
+        <div class="val" style="color:var(--gold)" id="stat-reads">0</div>
+      </div>
+      <div class="stat">
+        <label>Without Cache Would Be</label>
+        <div class="val bad" id="stat-naive">0</div>
+      </div>
+      <div class="stat">
+        <label>Savings</label>
+        <div class="val good" id="stat-savings">0%</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SECTION 5: PREFILL vs DECODE                 -->
+<!-- ════════════════════════════════════════════ -->
+<div id="s5" class="section">
+  <h2>5. Prefill vs Decode: Two Phases</h2>
+
+  <p>KV Cache naturally splits inference into two distinct phases with very different computational profiles:</p>
+
+  <div style="display:flex; gap:16px; flex-wrap:wrap; margin: 24px 0;">
+    <div class="gqa-card" style="border-color: var(--blue);">
+      <h4 style="color: var(--blue);">Phase 1: PREFILL</h4>
+      <p style="font-size:0.8rem;">Process the entire user prompt at once</p>
+      <div style="margin: 12px 0;">
+        <div style="display:flex; gap:4px; justify-content:center; flex-wrap:wrap;">
+          <div class="token new" style="font-size:0.65rem; padding:4px 8px;">Tell</div>
+          <div class="token new" style="font-size:0.65rem; padding:4px 8px;">me</div>
+          <div class="token new" style="font-size:0.65rem; padding:4px 8px;">about</div>
+          <div class="token new" style="font-size:0.65rem; padding:4px 8px;">quantum</div>
+          <div class="token new" style="font-size:0.65rem; padding:4px 8px;">physics</div>
+        </div>
+        <div style="color:var(--text-dim); font-size:0.7rem; margin-top:8px;">↓ ALL tokens processed in parallel ↓</div>
+        <div style="color:var(--gold); font-family:'Space Mono'; font-size:0.7rem; margin-top:4px;">KV Cache filled with all 5 K,V pairs at once</div>
+      </div>
+      <div style="font-size:0.75rem; text-align:left; margin-top:12px; color:var(--text-dim);">
+        <div>&bull; <span class="highlight">Compute-bound</span> (GPU cores busy)</div>
+        <div>&bull; Parallel matrix multiplications</div>
+        <div>&bull; HIGH GPU utilization</div>
+        <div>&bull; One-time cost per request</div>
+      </div>
+    </div>
+
+    <div class="gqa-card" style="border-color: var(--purple);">
+      <h4 style="color: var(--purple);">Phase 2: DECODE</h4>
+      <p style="font-size:0.8rem;">Generate response tokens one at a time</p>
+      <div style="margin: 12px 0;">
+        <div style="display:flex; gap:4px; justify-content:center; flex-wrap:wrap; align-items: center;">
+          <div class="token new" style="font-size:0.65rem; padding:4px 8px;">Quantum</div>
+          <span class="arrow">→</span>
+          <div class="token output" style="font-size:0.65rem; padding:4px 8px;">physics</div>
+          <span class="arrow">→</span>
+          <div class="token output" style="font-size:0.65rem; padding:4px 8px;">is</div>
+          <span class="arrow">→</span>
+          <div class="token output" style="font-size:0.65rem; padding:4px 8px;">...</div>
+        </div>
+        <div style="color:var(--text-dim); font-size:0.7rem; margin-top:8px;">↓ 1 token at a time + read entire cache ↓</div>
+        <div style="color:var(--gold); font-family:'Space Mono'; font-size:0.7rem; margin-top:4px;">KV Cache grows by 1 entry each step</div>
+      </div>
+      <div style="font-size:0.75rem; text-align:left; margin-top:12px; color:var(--text-dim);">
+        <div>&bull; <span class="highlight-orange">Memory-bound</span> (reading huge cache)</div>
+        <div>&bull; Sequential, one token per forward pass</div>
+        <div>&bull; LOW GPU utilization</div>
+        <div>&bull; Repeated for every output token</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Key Insight:</strong> Most of the wall-clock time is spent in the <strong>Decode phase</strong>. Prefill is fast (parallel), but Decode is limited by <span class="highlight-orange">memory bandwidth</span> — reading the ever-growing KV cache from GPU VRAM. This is why KV cache optimization matters so much.
+  </div>
+
+  <h3>Why Decode is Memory-Bound</h3>
+  <p>During decode, the GPU is doing very little math (just 1 token's worth) but reading a <em>lot</em> of data (the entire KV cache). Modern GPUs have far more compute power than memory bandwidth, so the GPU sits mostly idle, waiting for data. This is why techniques like <span class="highlight">quantized KV cache</span> (reducing bytes per value) directly speed up decode.</p>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SECTION 6: MEMORY                            -->
+<!-- ════════════════════════════════════════════ -->
+<div id="s6" class="section">
+  <h2>6. KV Cache Memory: The Elephant in the Room</h2>
+
+  <p>The KV cache lives in <span class="highlight">GPU memory (VRAM)</span> and grows linearly with sequence length, across <em>every</em> layer and <em>every</em> attention head.</p>
+
+  <div class="formula-box">
+    KV Cache Size = 2 &times; num_layers &times; num_kv_heads &times; head_dim &times; seq_len &times; bytes_per_param
+    <div style="margin-top:8px; color:var(--text-dim); font-size:0.7rem;">
+      2 = one for K, one for V &nbsp;|&nbsp; bytes = 2 for FP16, 1 for INT8, 0.5 for INT4
+    </div>
+  </div>
+
+  <h3>Memory Calculator</h3>
+  <div class="demo-container">
+    <div class="calc-grid">
+      <div class="calc-input">
+        <label>Layers</label>
+        <input type="number" id="calc-layers" value="32" min="1" oninput="calcMemory()">
+      </div>
+      <div class="calc-input">
+        <label>KV Heads</label>
+        <input type="number" id="calc-heads" value="32" min="1" oninput="calcMemory()">
+      </div>
+      <div class="calc-input">
+        <label>Head Dimension</label>
+        <input type="number" id="calc-dim" value="128" min="1" oninput="calcMemory()">
+      </div>
+      <div class="calc-input">
+        <label>Sequence Length</label>
+        <input type="number" id="calc-seq" value="4096" min="1" oninput="calcMemory()">
+      </div>
+      <div class="calc-input">
+        <label>Precision</label>
+        <select id="calc-prec" onchange="calcMemory()">
+          <option value="2">FP16 (2 bytes)</option>
+          <option value="1">INT8 (1 byte)</option>
+          <option value="0.5">INT4 (0.5 bytes)</option>
+        </select>
+      </div>
+      <div class="calc-input">
+        <label>Batch Size</label>
+        <input type="number" id="calc-batch" value="1" min="1" oninput="calcMemory()">
+      </div>
+    </div>
+
+    <div class="calc-result">
+      <div class="size" id="calc-size">1.07 GB</div>
+      <div class="context" id="calc-context">Per-sequence KV cache for a LLaMA-2 7B-sized model</div>
+    </div>
+  </div>
+
+  <h3>Real-World KV Cache Sizes</h3>
+  <table class="comparison-table">
+    <tr><th>Model</th><th>Layers</th><th>KV Heads</th><th>Head Dim</th><th>Max Seq</th><th>KV Cache (FP16)</th></tr>
+    <tr><td>GPT-2 (1.5B)</td><td>48</td><td>25</td><td>64</td><td>1,024</td><td>~150 MB</td></tr>
+    <tr><td>LLaMA-2 7B</td><td>32</td><td>32</td><td>128</td><td>4,096</td><td>~1.07 GB</td></tr>
+    <tr><td>LLaMA-2 13B</td><td>40</td><td>40</td><td>128</td><td>4,096</td><td>~1.67 GB</td></tr>
+    <tr><td>LLaMA-2 70B (GQA)</td><td>80</td><td>8</td><td>128</td><td>4,096</td><td>~0.54 GB</td></tr>
+    <tr><td>Mistral 7B</td><td>32</td><td>8</td><td>128</td><td>32,768</td><td>~2.15 GB</td></tr>
+    <tr><td>GPT-3 (175B)</td><td>96</td><td>96</td><td>128</td><td>2,048</td><td>~4.83 GB</td></tr>
+    <tr><td>Claude/GPT-4 class</td><td>~120</td><td>~128</td><td>128</td><td>128K+</td><td><span class="highlight-orange">~50+ GB</span></td></tr>
+  </table>
+
+  <div class="callout warning">
+    <strong>At 128K context</strong>, KV cache can consume <strong>more GPU memory than the model weights themselves</strong>. This is why long-context models require specialized KV cache management — it's the #1 memory bottleneck in LLM serving.
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SECTION 7: OPTIMIZATIONS                     -->
+<!-- ════════════════════════════════════════════ -->
+<div id="s7" class="section">
+  <h2>7. KV Cache Optimizations</h2>
+
+  <p>Because KV cache is the dominant memory bottleneck, the industry has developed several clever optimizations:</p>
+
+  <h3>A. Grouped-Query Attention (GQA) Family</h3>
+  <p>The most impactful architectural change — reduce the number of KV heads:</p>
+
+  <div class="gqa-viz">
+    <div class="gqa-card">
+      <h4 style="color:var(--red);">MHA (Original)</h4>
+      <div class="head-row">
+        <div class="head q">Q1</div><div class="head q">Q2</div><div class="head q">Q3</div><div class="head q">Q4</div>
+        <div class="head q">Q5</div><div class="head q">Q6</div><div class="head q">Q7</div><div class="head q">Q8</div>
+      </div>
+      <div class="conn-lines">| | | | | | | |</div>
+      <div class="head-row">
+        <div class="head k">K1</div><div class="head k">K2</div><div class="head k">K3</div><div class="head k">K4</div>
+        <div class="head k">K5</div><div class="head k">K6</div><div class="head k">K7</div><div class="head k">K8</div>
+      </div>
+      <div class="head-row">
+        <div class="head v">V1</div><div class="head v">V2</div><div class="head v">V3</div><div class="head v">V4</div>
+        <div class="head v">V5</div><div class="head v">V6</div><div class="head v">V7</div><div class="head v">V8</div>
+      </div>
+      <div class="cache-bar"><div class="fill" style="width:100%; background:var(--red);"></div></div>
+      <div class="cache-pct" style="color:var(--red);">100% cache</div>
+      <div style="font-size:0.7rem; color:var(--text-dim); margin-top:6px;">GPT-3, LLaMA-1</div>
+    </div>
+
+    <div class="gqa-card">
+      <h4 style="color:var(--gold);">GQA (Sweet Spot)</h4>
+      <div class="head-row">
+        <div class="head q">Q1</div><div class="head q">Q2</div><div class="head q">Q3</div><div class="head q">Q4</div>
+        <div class="head q">Q5</div><div class="head q">Q6</div><div class="head q">Q7</div><div class="head q">Q8</div>
+      </div>
+      <div class="conn-lines">\ \ / / &nbsp; \ \ / /</div>
+      <div class="head-row" style="justify-content:space-around;">
+        <div class="head k" style="width:36px;">K<sub>g1</sub></div>
+        <div class="head k" style="width:36px;">K<sub>g2</sub></div>
+      </div>
+      <div class="head-row" style="justify-content:space-around;">
+        <div class="head v" style="width:36px;">V<sub>g1</sub></div>
+        <div class="head v" style="width:36px;">V<sub>g2</sub></div>
+      </div>
+      <div class="cache-bar"><div class="fill" style="width:25%; background:var(--gold);"></div></div>
+      <div class="cache-pct" style="color:var(--gold);">25% cache (4x smaller)</div>
+      <div style="font-size:0.7rem; color:var(--text-dim); margin-top:6px;">LLaMA-2 70B, Mistral, LLaMA-3</div>
+    </div>
+
+    <div class="gqa-card">
+      <h4 style="color:var(--green);">MQA (Extreme)</h4>
+      <div class="head-row">
+        <div class="head q">Q1</div><div class="head q">Q2</div><div class="head q">Q3</div><div class="head q">Q4</div>
+        <div class="head q">Q5</div><div class="head q">Q6</div><div class="head q">Q7</div><div class="head q">Q8</div>
+      </div>
+      <div class="conn-lines">\ \ \ | / / /</div>
+      <div class="head-row" style="justify-content:center;">
+        <div class="head k" style="width:36px;">K</div>
+      </div>
+      <div class="head-row" style="justify-content:center;">
+        <div class="head v" style="width:36px;">V</div>
+      </div>
+      <div class="cache-bar"><div class="fill" style="width:12.5%; background:var(--green);"></div></div>
+      <div class="cache-pct" style="color:var(--green);">12.5% cache (8x smaller)</div>
+      <div style="font-size:0.7rem; color:var(--text-dim); margin-top:6px;">PaLM, Falcon, StarCoder</div>
+    </div>
+  </div>
+
+  <h3>B. PagedAttention (vLLM)</h3>
+  <p>Inspired by OS virtual memory. Instead of allocating contiguous GPU memory per sequence (wasteful due to padding), allocate small fixed-size <span class="highlight-gold">pages</span>:</p>
+  <div class="callout">
+    <strong>Traditional:</strong> Pre-allocate max_seq_len for each request → massive waste<br>
+    <strong>PagedAttention:</strong> Allocate in small pages, mapped via page table → near-zero waste, pages can be shared across beam search candidates
+  </div>
+
+  <h3>C. Quantized KV Cache</h3>
+  <p>Reduce precision of cached K,V values. K,V are less sensitive to quantization than model weights:</p>
+  <table class="comparison-table">
+    <tr><th>Precision</th><th>Bytes/Value</th><th>Memory Savings</th><th>Quality Impact</th></tr>
+    <tr><td>FP16</td><td>2</td><td>Baseline</td><td>None</td></tr>
+    <tr><td>INT8</td><td>1</td><td><span class="highlight-green">50%</span></td><td>Minimal</td></tr>
+    <tr><td>INT4</td><td>0.5</td><td><span class="highlight-green">75%</span></td><td>Small (usually acceptable)</td></tr>
+  </table>
+
+  <h3>D. Sliding Window Attention</h3>
+  <p>Only attend to the last <em>W</em> tokens instead of the full history. Cache holds at most <em>W</em> entries:</p>
+  <div class="callout">Used by Mistral (W=4096). Some layers use full attention while others use windowed — hybrid approach preserves long-range understanding while saving memory.</div>
+
+  <h3>E. KV Cache Eviction (H2O / StreamingLLM)</h3>
+  <p>For truly infinite-length generation, intelligently evict old entries:</p>
+  <ul style="margin-left:20px; line-height:2; font-size:0.9rem;">
+    <li><strong>H2O (Heavy Hitter Oracle):</strong> Keep tokens that consistently receive high attention scores ("heavy hitters"), evict low-attention ones</li>
+    <li><strong>StreamingLLM:</strong> Keep "attention sinks" (first few tokens that anchor the attention distribution) + a sliding window of recent tokens. Enables infinite-length generation with fixed memory.</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SECTION 8: SUMMARY                           -->
+<!-- ════════════════════════════════════════════ -->
+<div id="s8" class="section">
+  <h2>8. Summary: The Full Picture</h2>
+
+  <table class="comparison-table">
+    <tr><th></th><th>Without KV Cache</th><th>With KV Cache</th></tr>
+    <tr><td><strong>Compute per step</strong></td><td class="highlight-orange">O(n) — reprocess all tokens</td><td class="highlight-green">O(1) — only new token</td></tr>
+    <tr><td><strong>Total compute</strong></td><td class="highlight-orange">O(n&sup2;)</td><td class="highlight-green">O(n)</td></tr>
+    <tr><td><strong>GPU memory</strong></td><td>Low (no cache needed)</td><td>High (cache grows with sequence)</td></tr>
+    <tr><td><strong>Bottleneck</strong></td><td>Compute-bound</td><td>Memory-bandwidth-bound</td></tr>
+    <tr><td><strong>Practical speed</strong></td><td>Very slow</td><td><span class="highlight-green">10-100x faster</span></td></tr>
+  </table>
+
+  <div class="callout success" style="margin-top:24px;">
+    <strong>In one sentence:</strong> KV Cache is <strong>memoization for attention</strong> — it stores the Key and Value vectors of all past tokens so they're never recomputed, turning quadratic inference into linear, and making real-time chat with LLMs possible.
+  </div>
+
+  <h3>The Fundamental Trade-off</h3>
+  <p><span class="highlight-green">Speed</span> vs <span class="highlight-orange">Memory</span>. KV Cache trades GPU memory for dramatically faster generation. Every major optimization (GQA, quantization, paging, eviction) is about getting the same speed benefit while using less memory.</p>
+
+  <h3>Why It Matters</h3>
+  <ul style="margin-left:20px; line-height:2; font-size:0.9rem;">
+    <li>Without KV cache, ChatGPT-style real-time streaming would be impossible</li>
+    <li>It's the reason long-context models (128K+ tokens) need massive GPU clusters</li>
+    <li>KV cache management (vLLM's PagedAttention) is what makes serving thousands of concurrent users feasible</li>
+    <li>The MHA→GQA evolution was primarily motivated by KV cache reduction</li>
+    <li>Quantized KV cache directly speeds up decode by reducing memory bandwidth demands</li>
+  </ul>
+</div>
+
+<script>
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  window.scrollTo({ top: document.getElementById('nav').offsetTop, behavior: 'smooth' });
+}
+
+// Naive demo (Section 1)
+const tokens = ["The", "cat", "sat", "on", "the", "mat"];
+const outputs = ["cat", "sat", "on", "the", "mat", "."];
+
+function buildNaiveDemo() {
+  const container = document.getElementById('naive-demo');
+  let html = '<div style="font-family:\'Space Mono\'; font-size:0.8rem; margin-bottom:8px; color:var(--text-dim);">Without KV Cache — watch the orange blocks grow:</div>';
+  for (let step = 0; step < 5; step++) {
+    html += `<div class="token-row" style="animation-delay:${step * 0.15}s">`;
+    html += `<span style="font-family:'Space Mono'; font-size:0.7rem; color:var(--text-dim); width:50px;">Step ${step+1}</span>`;
+    for (let t = 0; t <= step; t++) {
+      const cls = t < step ? 'redundant' : 'new';
+      html += `<div class="token ${cls}" style="font-size:0.7rem; padding:5px 10px;">${tokens[t]}</div>`;
+    }
+    html += `<span class="arrow">→</span>`;
+    html += `<div class="token output" style="font-size:0.7rem; padding:5px 10px;">${outputs[step]}</div>`;
+    html += `<span style="font-family:'Space Mono'; font-size:0.65rem; color:var(--text-dim);">${step+1} ops</span>`;
+    html += `</div>`;
+  }
+  html += `<div style="margin-top:12px; font-family:'Space Mono'; font-size:0.75rem;">Total: 1+2+3+4+5 = <span class="highlight-orange">15 computations</span></div>`;
+  container.innerHTML = html;
+}
+buildNaiveDemo();
+
+// KV Walkthrough (Section 3)
+function buildKVWalkthrough() {
+  const container = document.getElementById('kv-walkthrough');
+  let html = '<div style="font-family:\'Space Mono\'; font-size:0.8rem; margin-bottom:12px; color:var(--text-dim);">With KV Cache — only the new token is processed:</div>';
+  for (let step = 0; step < 5; step++) {
+    html += `<div class="token-row" style="animation-delay:${step * 0.15}s">`;
+    html += `<span style="font-family:'Space Mono'; font-size:0.7rem; color:var(--text-dim); width:50px;">Step ${step+1}</span>`;
+    html += `<div class="token new" style="font-size:0.7rem; padding:5px 10px;">${tokens[step]}</div>`;
+    if (step > 0) {
+      html += `<span style="font-size:0.6rem; color:var(--gold);">+ cache[`;
+      for (let c = 0; c < step; c++) {
+        html += `K${c+1},V${c+1}`;
+        if (c < step - 1) html += ' ';
+      }
+      html += `]</span>`;
+    }
+    html += `<span class="arrow">→</span>`;
+    html += `<div class="token output" style="font-size:0.7rem; padding:5px 10px;">${outputs[step]}</div>`;
+    html += `<span style="font-family:'Space Mono'; font-size:0.65rem; color:var(--green);">1 op</span>`;
+    html += `</div>`;
+  }
+  html += `<div style="margin-top:12px; font-family:'Space Mono'; font-size:0.75rem;">Total: 1+1+1+1+1 = <span class="highlight-green">5 computations</span> (3x less already, grows to 100x+ for long sequences)</div>`;
+  container.innerHTML = html;
+}
+buildKVWalkthrough();
+
+// Interactive Demo (Section 4)
+let currentStep = 0;
+const maxSteps = 6;
+let totalNew = 0, totalReads = 0;
+
+function demoStep() {
+  if (currentStep >= maxSteps) return;
+
+  const stepsEl = document.getElementById('interactive-steps');
+  const cacheEl = document.getElementById('cache-entries');
+  const emptyEl = document.getElementById('cache-empty');
+
+  currentStep++;
+  const idx = currentStep - 1;
+  totalNew++;
+  totalReads += idx;
+
+  const row = document.createElement('div');
+  row.className = 'token-row';
+  row.innerHTML = `
+    <span style="font-family:'Space Mono'; font-size:0.7rem; color:var(--text-dim); width:50px;">Step ${currentStep}</span>
+    <div class="token new" style="font-size:0.7rem; padding:5px 10px;">${tokens[idx]}</div>
+    <span style="font-size:0.6rem; color:var(--text-dim);">→ compute Q${currentStep}, K${currentStep}, V${currentStep}</span>
+    ${idx > 0 ? `<span style="font-size:0.6rem; color:var(--gold);">+ read ${idx} cached pairs</span>` : ''}
+    <span class="arrow">→</span>
+    <div class="token output" style="font-size:0.7rem; padding:5px 10px;">${outputs[idx]}</div>
+  `;
+  stepsEl.appendChild(row);
+
+  const entry = document.createElement('div');
+  entry.className = 'cache-entry';
+  entry.innerHTML = `<span class="k">K${currentStep}</span><span class="v">V${currentStep}</span>`;
+  cacheEl.appendChild(entry);
+  emptyEl.style.display = 'none';
+
+  const naiveTotal = currentStep * (currentStep + 1) / 2;
+  const savings = naiveTotal > 0 ? Math.round((1 - totalNew / naiveTotal) * 100) : 0;
+
+  document.getElementById('stat-new').textContent = totalNew;
+  document.getElementById('stat-reads').textContent = totalReads;
+  document.getElementById('stat-naive').textContent = naiveTotal;
+  document.getElementById('stat-savings').textContent = savings + '%';
+  document.getElementById('step-label').textContent = `Step ${currentStep} / ${maxSteps}`;
+
+  if (currentStep >= maxSteps) {
+    document.getElementById('step-btn').disabled = true;
+  }
+}
+
+function demoReset() {
+  currentStep = 0;
+  totalNew = 0;
+  totalReads = 0;
+  document.getElementById('interactive-steps').innerHTML = '';
+  document.getElementById('cache-entries').innerHTML = '';
+  document.getElementById('cache-empty').style.display = 'block';
+  document.getElementById('stat-new').textContent = '0';
+  document.getElementById('stat-reads').textContent = '0';
+  document.getElementById('stat-naive').textContent = '0';
+  document.getElementById('stat-savings').textContent = '0%';
+  document.getElementById('step-label').textContent = `Step 0 / ${maxSteps}`;
+  document.getElementById('step-btn').disabled = false;
+}
+
+// Memory Calculator (Section 6)
+function calcMemory() {
+  const layers = parseInt(document.getElementById('calc-layers').value) || 0;
+  const heads = parseInt(document.getElementById('calc-heads').value) || 0;
+  const dim = parseInt(document.getElementById('calc-dim').value) || 0;
+  const seq = parseInt(document.getElementById('calc-seq').value) || 0;
+  const prec = parseFloat(document.getElementById('calc-prec').value) || 2;
+  const batch = parseInt(document.getElementById('calc-batch').value) || 1;
+
+  const bytes = 2 * layers * heads * dim * seq * prec * batch;
+  let display;
+  if (bytes >= 1e9) display = (bytes / 1e9).toFixed(2) + ' GB';
+  else if (bytes >= 1e6) display = (bytes / 1e6).toFixed(1) + ' MB';
+  else display = (bytes / 1e3).toFixed(0) + ' KB';
+
+  document.getElementById('calc-size').textContent = display;
+
+  const batchNote = batch > 1 ? ` across ${batch} concurrent sequences` : '';
+  document.getElementById('calc-context').textContent =
+    `${layers}L × ${heads}H × ${dim}d × ${seq.toLocaleString()} tokens × ${prec}B${batchNote}`;
+}
+calcMemory();
+</script>
+</body>
+</html>
