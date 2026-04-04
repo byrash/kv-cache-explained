@@ -132,6 +132,7 @@ table.t tr:hover td{background:rgba(99,102,241,0.03)}
     <div class="sep"></div>
     <a href="#copilot">Copilot CLI</a>
     <a href="#srt">SRT Deploy</a>
+    <a href="#wsl">Windows / WSL2</a>
   </div>
 </nav>
 
@@ -454,10 +455,70 @@ child.<span class="fn">on</span>(<span class="str">'exit'</span>, () => SandboxM
   </div>
 </section>
 
+<!-- ──── WINDOWS / WSL2 ──── -->
+<section id="wsl">
+  <h2><span class="n">WSL</span> Windows / WSL2 Sandboxing</h2>
+  <p class="sdesc">Claude Code has no native Windows sandbox — it uses WSL2 + bubblewrap instead. The same approach works for sandboxing Copilot CLI on Windows fleets.</p>
+
+  <h3>Why WSL2 Works</h3>
+  <div class="cards">
+    <div class="cd" data-c="g"><h4>Real Linux Kernel</h4><p>WSL2 runs a full Hyper-V Linux kernel. <code>CLONE_NEWNS</code>, <code>CLONE_NEWNET</code>, <code>CLONE_NEWPID</code> all work — bubblewrap functions identically to native Linux.</p></div>
+    <div class="cd" data-c="r"><h4>WSL1 Is a Hard No</h4><p>WSL1 translates syscalls — no real namespaces. Bubblewrap cannot run. Must enforce WSL2 via <code>wsl --set-default-version 2</code> across fleet.</p></div>
+    <div class="cd"><h4>SRT Auto-Detects</h4><p><code>@anthropic-ai/sandbox-runtime</code> sees Linux and uses bubblewrap + socat automatically. No WSL-specific code needed.</p></div>
+    <div class="cd" data-c="o"><h4>Network Stack</h4><p>WSL2 has its own virtual network adapter. Proxy-based domain filtering works identically — all egress passes through the SRT proxy.</p></div>
+  </div>
+
+  <h3>Setup Steps</h3>
+  <div class="steps">
+    <div class="st"><div class="sb"><div class="st-t">Ensure WSL2 is installed</div><div class="st-d">MDM can push via <code>wsl --install</code> (supported since Win10 2004). Force version 2: <code>wsl --set-default-version 2</code>.</div></div></div>
+    <div class="st"><div class="sb"><div class="st-t">Install sandbox dependencies inside WSL2</div><div class="st-d"><code>sudo apt-get install bubblewrap socat</code> — same as native Linux.</div></div></div>
+    <div class="st"><div class="sb"><div class="st-t">Install Copilot CLI inside WSL2</div><div class="st-d">Node.js + npm live in WSL2, not the Windows side: <code>npm install -g @github/copilot</code>.</div></div></div>
+    <div class="st"><div class="sb"><div class="st-t">Wrap with SRT</div><div class="st-d"><code>npx @anthropic-ai/sandbox-runtime gh copilot</code> — sandboxes everything. Same command as native Linux.</div></div></div>
+    <div class="st"><div class="sb"><div class="st-t">Access project files</div><div class="st-d">Windows repos accessible via <code>/mnt/c/Users/...</code>. For better performance, keep repos inside WSL2 filesystem (<code>~/projects/</code>).</div></div></div>
+  </div>
+
+  <h3>OS Detection Wrapper</h3>
+  <div class="codeblock">
+    <div class="cb-title">Cross-Platform Launcher Script</div>
+    <pre><span class="cmt">#!/usr/bin/env bash</span>
+<span class="kw">if</span> [[ <span class="str">"$(uname -r)"</span> == *microsoft* ]]; <span class="kw">then</span>
+  <span class="cmt"># Already inside WSL2 — use SRT directly</span>
+  <span class="fn">exec</span> npx @anthropic-ai/sandbox-runtime <span class="str">"$@"</span>
+<span class="kw">elif</span> [[ <span class="str">"$(uname)"</span> == <span class="str">"Darwin"</span> ]]; <span class="kw">then</span>
+  <span class="cmt"># macOS — SRT uses Seatbelt</span>
+  <span class="fn">exec</span> npx @anthropic-ai/sandbox-runtime <span class="str">"$@"</span>
+<span class="kw">elif</span> command -v wsl.exe &>/dev/null; <span class="kw">then</span>
+  <span class="cmt"># Windows-side — delegate into WSL2</span>
+  <span class="fn">exec</span> wsl -- npx @anthropic-ai/sandbox-runtime <span class="str">"$@"</span>
+<span class="kw">else</span>
+  <span class="cmt"># Native Linux — SRT uses bubblewrap</span>
+  <span class="fn">exec</span> npx @anthropic-ai/sandbox-runtime <span class="str">"$@"</span>
+<span class="kw">fi</span></pre>
+  </div>
+
+  <h3>Caveats</h3>
+  <table class="t">
+    <thead><tr><th>Concern</th><th>Impact</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td><code>/mnt/c/</code> filesystem perf</td><td>~2-5x slower than native Linux FS</td><td>Keep repos inside WSL2 filesystem (<code>~/projects/</code>)</td></tr>
+      <tr><td>WSL2 must be installed</td><td>Enterprise rollout dependency</td><td>MDM deploys WSL2 + distro via <code>wsl --install</code></td></tr>
+      <tr><td>WSL1 incompatible</td><td>bubblewrap needs real kernel namespaces</td><td>Enforce <code>wsl --set-default-version 2</code> in deployment</td></tr>
+      <tr><td>Windows-native tools</td><td>Visual Studio, etc. can't run inside WSL2</td><td>Only CLI commands get sandboxed; GUI tools stay outside</td></tr>
+      <tr><td>Docker Desktop</td><td>Docker in WSL2 conflicts with bwrap namespaces</td><td>Use <code>excludedCommands: ["docker *"]</code> like Claude Code</td></tr>
+      <tr><td>Disk space</td><td>WSL2 distro + Node.js + SRT uses ~2-3 GB</td><td>Acceptable for enterprise dev machines</td></tr>
+    </tbody>
+  </table>
+
+  <div class="qa">
+    <div class="q">Is this the same approach Claude Code uses for Windows?</div>
+    <div class="a"><strong>Yes, exactly.</strong> Claude Code has no native Windows sandbox. Their production path is WSL2 + bubblewrap — the same Linux sandbox running under a Hyper-V Linux kernel. You are reusing a proven, production-tested approach.</div>
+  </div>
+</section>
+
 </div>
 
 <div style="text-align:center;padding:48px 24px;color:var(--text3);font-size:13px;font-family:var(--mono)">
-  Claude Code Deep Dive — Memory · Auth · Providers · Streaming · Sandboxing · Hooks · Copilot CLI · SRT
+  Claude Code Deep Dive — Memory · Auth · Sandboxing · Copilot CLI · SRT · Windows/WSL2
 </div>
 
 <script>
